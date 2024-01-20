@@ -4,7 +4,6 @@
 This module manage Telegram communication
 """
 import asyncio
-from os import path
 import json
 import logging
 import re
@@ -37,9 +36,7 @@ from freqtrade.rpc import RPC, RPCException, RPCHandler
 from freqtrade.rpc.rpc_types import RPCEntryMsg, RPCExitMsg, RPCOrderMsg, RPCSendMsg
 from freqtrade.util import dt_humanize, fmt_coin, round_value
 
-
 MAX_MESSAGE_LENGTH = MessageLimit.MAX_TEXT_LENGTH
-
 
 logger = logging.getLogger(__name__)
 
@@ -52,6 +49,7 @@ def safe_async_db(func: Callable[..., Any]):
     :param func: function to decorate
     :return: decorated function
     """
+
     @wraps(func)
     def wrapper(*args, **kwargs):
         """ Decorator logic """
@@ -450,7 +448,7 @@ class Telegram(RPCHandler):
         profit_fiat_extra = ''
         if self._rpc._fiat_converter and (fiat_currency := msg.get('fiat_currency')):
             profit_fiat = self._rpc._fiat_converter.convert_amount(
-                    msg[key], msg['stake_currency'], fiat_currency)
+                msg[key], msg['stake_currency'], fiat_currency)
             profit_fiat_extra = f" / {profit_fiat:.3f} {fiat_currency}"
         return profit_fiat_extra
 
@@ -462,8 +460,8 @@ class Telegram(RPCHandler):
             message = self._format_exit_msg(msg)
 
         elif (
-            msg['type'] == RPCMessageType.ENTRY_CANCEL
-            or msg['type'] == RPCMessageType.EXIT_CANCEL
+                msg['type'] == RPCMessageType.ENTRY_CANCEL
+                or msg['type'] == RPCMessageType.EXIT_CANCEL
         ):
             message_side = 'enter' if msg['type'] == RPCMessageType.ENTRY_CANCEL else 'exit'
             message = (f"\N{WARNING SIGN} *{self._exchange_from_msg(msg)}:* "
@@ -661,7 +659,7 @@ class Telegram(RPCHandler):
             r['open_date_hum'] = dt_humanize(r['open_date'])
             r['num_entries'] = len([o for o in r['orders'] if o['ft_is_entry']])
             r['num_exits'] = len([o for o in r['orders'] if not o['ft_is_entry']
-                                 and not o['ft_order_side'] == 'stoploss'])
+                                  and not o['ft_order_side'] == 'stoploss'])
             r['exit_reason'] = r.get('exit_reason', "")
             r['stake_amount_r'] = fmt_coin(r['stake_amount'], r['quote_currency'])
             r['max_stake_amount_r'] = fmt_coin(
@@ -990,9 +988,9 @@ class Telegram(RPCHandler):
         duration_msg = tabulate(
             [
                 ['Wins', str(timedelta(seconds=durations['wins']))
-                 if durations['wins'] is not None else 'N/A'],
+                if durations['wins'] is not None else 'N/A'],
                 ['Losses', str(timedelta(seconds=durations['losses']))
-                 if durations['losses'] is not None else 'N/A']
+                if durations['losses'] is not None else 'N/A']
             ],
             headers=['', 'Avg. Duration']
         )
@@ -1027,8 +1025,8 @@ class Telegram(RPCHandler):
         for curr in result['currencies']:
             curr_output = ''
             if (
-                (curr['is_position'] or curr['est_stake'] > balance_dust_level)
-                and (full_result or curr['is_bot_managed'])
+                    (curr['is_position'] or curr['est_stake'] > balance_dust_level)
+                    and (full_result or curr['is_bot_managed'])
             ):
                 if curr['is_position']:
                     curr_output = (
@@ -1209,6 +1207,7 @@ class Telegram(RPCHandler):
                 @safe_async_db
                 def _force_enter():
                     self._rpc._rpc_force_entry(pair, price, order_side=order_side)
+
                 loop = asyncio.get_running_loop()
                 # Workaround to avoid nested loops
                 await loop.run_in_executor(None, _force_enter)
@@ -1291,9 +1290,9 @@ class Telegram(RPCHandler):
         )
         trades_tab = tabulate(
             [[dt_humanize(trade['close_date']),
-                trade['pair'] + " (#" + str(trade['trade_id']) + ")",
-                f"{(trade['close_profit']):.2%} ({trade['close_profit_abs']})"]
-                for trade in trades['trades']],
+              trade['pair'] + " (#" + str(trade['trade_id']) + ")",
+              f"{(trade['close_profit']):.2%} ({trade['close_profit_abs']})"]
+             for trade in trades['trades']],
             headers=[
                 'Close Date',
                 'Pair (ID)',
@@ -1350,7 +1349,7 @@ class Telegram(RPCHandler):
         output = "<b>Performance:</b>\n"
         for i, trade in enumerate(trades):
             stat_line = (
-                f"{i+1}.\t <code>{trade['pair']}\t"
+                f"{i + 1}.\t <code>{trade['pair']}\t"
                 f"{fmt_coin(trade['profit_abs'], self._config['stake_currency'])} "
                 f"({trade['profit_ratio']:.2%}) "
                 f"({trade['count']})</code>\n")
@@ -1382,7 +1381,7 @@ class Telegram(RPCHandler):
         output = "<b>Entry Tag Performance:</b>\n"
         for i, trade in enumerate(trades):
             stat_line = (
-                f"{i+1}.\t <code>{trade['enter_tag']}\t"
+                f"{i + 1}.\t <code>{trade['enter_tag']}\t"
                 f"{fmt_coin(trade['profit_abs'], self._config['stake_currency'])} "
                 f"({trade['profit_ratio']:.2%}) "
                 f"({trade['count']})</code>\n")
@@ -1414,7 +1413,7 @@ class Telegram(RPCHandler):
         output = "<b>Exit Reason Performance:</b>\n"
         for i, trade in enumerate(trades):
             stat_line = (
-                f"{i+1}.\t <code>{trade['exit_reason']}\t"
+                f"{i + 1}.\t <code>{trade['exit_reason']}\t"
                 f"{fmt_coin(trade['profit_abs'], self._config['stake_currency'])} "
                 f"({trade['profit_ratio']:.2%}) "
                 f"({trade['count']})</code>\n")
@@ -1446,7 +1445,7 @@ class Telegram(RPCHandler):
         output = "<b>Mix Tag Performance:</b>\n"
         for i, trade in enumerate(trades):
             stat_line = (
-                f"{i+1}.\t <code>{trade['mix_tag']}\t"
+                f"{i + 1}.\t <code>{trade['mix_tag']}\t"
                 f"{fmt_coin(trade['profit_abs'], self._config['stake_currency'])} "
                 f"({trade['profit_ratio']:.2%}) "
                 f"({trade['count']})</code>\n")
@@ -1527,7 +1526,6 @@ class Telegram(RPCHandler):
         :return: None
         """
         await self.__render_graph(False)
-
 
     @authorized_only
     async def _locks(self, update: Update, context: CallbackContext) -> None:
@@ -1743,7 +1741,7 @@ class Telegram(RPCHandler):
             "Avg. holding durations for buys and sells.`\n"
             "*/help:* `This help message`\n"
             "*/version:* `Show version`"
-            )
+        )
 
         await self._send_msg(message, parse_mode=ParseMode.MARKDOWN)
 
@@ -1854,7 +1852,7 @@ class Telegram(RPCHandler):
             try:
                 await self._app.bot.send_photo(
                     self._config['telegram']['chat_id'],
-                    photo=path.open(pic_path, "rb")
+                    photo=open(pic_path, "rb")
                 )
             except NetworkError as network_err:
                 # Sometimes the telegram server resets the current connection,
@@ -1865,7 +1863,7 @@ class Telegram(RPCHandler):
                 )
                 await self._app.bot.send_photo(
                     self._config['telegram']['chat_id'],
-                    photo=path.open(pic_path, "rb")
+                    photo=open(pic_path, "rb")
                 )
         except TelegramError as telegram_err:
             logger.warning(

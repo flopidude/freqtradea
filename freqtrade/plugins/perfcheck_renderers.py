@@ -1,5 +1,5 @@
+import os
 from datetime import datetime, timedelta
-from os import getcwd, makedirs, path, remove
 
 import numpy as np
 import pandas as pd
@@ -16,6 +16,7 @@ def __render_many_graphs_mapped(dfds, name, ppl, remap=False, render_informative
     fig = make_subplots(rows=1, cols=2)
     analyzed_tickers = []
     checked_tickers = []
+    leverages = [1]
 
     def transform_ratio_values(short_name, ratio_value):
         if short_name == "calmar":
@@ -109,7 +110,7 @@ def render_graph_by_files(file_names, remap=False, render_informative=False):
     names = []
     for name in file_names:
         file_name = name
-        if path.exists(file_name):
+        if os.path.exists(file_name):
             dfd = pd.read_pickle(file_name)
             if 'date' in dfd.columns.tolist() and not dfd["date"].isna().any():
                 dfd.set_index("date", inplace=True)
@@ -149,11 +150,11 @@ def return_results(fig, file_name=None, resolution_x=1200, resolution_y=800):
         return
 
 
-def create_folder_if_does_not_exist(url):
-    if not path.exists(url):
-        makedirs(url)
-        print("Path folder created", url)
-    return url
+def create_folder_if_does_not_exist(path):
+    if not os.path.exists(path):
+        os.makedirs(path)
+        print("Path folder created", path)
+    return path
 
 
 def calculate_ratios(account_values, append="", multiplier=15):
@@ -194,8 +195,8 @@ def calculate_ratios(account_values, append="", multiplier=15):
 
 
 class PerformanceMeteredStrategy():
-    curdir = path.join(getcwd(), "user_data")
-    perfcheck_folder = create_folder_if_does_not_exist(path.join(curdir, "perfchecks"))
+    curdir = os.path.join(os.getcwd(), "user_data")
+    perfcheck_folder = create_folder_if_does_not_exist(os.path.join(curdir, "perfchecks"))
     metric_columns = ['sharpe_ratio', 'calmar_ratio', 'omega_ratio', 'vwr_ratio']
     balance_list = pd.DataFrame(columns=["date", "total", "used", "free"] + metric_columns)
     balance_filez = None
@@ -231,27 +232,27 @@ class PerformanceMeteredStrategy():
 
     def balance_file_setter(self):
         if self.balance_filez is None:
-            self.balance_filez = path.join(self.perfcheck_folder,
-                                           self.perfcheck_config["name"] + f".{self.runmode}.pkl")
+            self.balance_filez = os.path.join(self.perfcheck_folder,
+                                              self.perfcheck_config["name"] + f".{self.runmode}.pkl")
             if self.runmode in ('hyperopt'):  # self.config['runmode'].value in ('hyperopt'):
                 # self.balance_list = pd.DataFrame(columns=["date", "total", "used", "free"] + self.metric_columns)
                 print("removing the balance list file", self.balance_list)
-                if path.exists(self.balance_filez):
-                    remove(self.balance_filez)
-            if self.runmode in ('live', 'dry_run') and path.exists(self.balance_filez):
+                if os.path.exists(self.balance_filez):
+                    os.remove(self.balance_filez)
+            if self.runmode in ('live', 'dry_run') and os.path.exists(self.balance_filez):
                 self.balance_list = pd.read_pickle(self.balance_filez)
                 print("loading again")
         return self.balance_filez
 
     def load_informative_strategies(self, strategies):
         for strategy in strategies:
-            strategy_file_path = path.join(self.perfcheck_folder,
-                                           strategy if strategy.endswith('.pkl') else strategy + ".pkl")
+            strategy_file_path = os.path.join(self.perfcheck_folder,
+                                              strategy if strategy.endswith('.pkl') else strategy + ".pkl")
             self.informative_strategies[strategy] = pd.read_pickle(strategy_file_path)
 
     def render_difference(self, current_time: datetime):
         date_now = pd.to_datetime(current_time).floor(f"{self.perfcheck_config['update_performance_minutes']}min")
-        # informative_columns = []
+        informative_columns = []
         pair_prices = {}
         current_balance = self.calculate_total_profits()
         if current_balance is not None:
@@ -271,12 +272,12 @@ class PerformanceMeteredStrategy():
         metrics = calculate_ratios(self.balance_list["total"])
         metrics["date"] = date_now
         infmetrics = {}
-        # informative_columns = []
-        # for infcolname in informative_columns:
-        #     # print(infcolname)
-        #     metrics_informative = calculate_ratios(self.balance_list[infcolname],
-        #                                            "-" + infcolname.split('-')[1])
-        #     infmetrics = infmetrics | metrics_informative
+        informative_columns = []
+        for infcolname in informative_columns:
+            # print(infcolname)
+            metrics_informative = calculate_ratios(self.balance_list[infcolname],
+                                                   "-" + infcolname.split('-')[1])
+            infmetrics = infmetrics | metrics_informative
         metrics = pd.DataFrame([metrics])
         metrics.set_index('date', inplace=True)
         self.balance_list = self.balance_list.combine_first(metrics)
@@ -285,7 +286,7 @@ class PerformanceMeteredStrategy():
         self.balance_list.loc[:, self.metric_columns] = self.balance_list.loc[:, self.metric_columns].fillna(
             method='ffill')
         # print(self.balance_list)
-        if self.runmode not in ("hyperopt"):
+        if not self.runmode in ("hyperopt"):
             self.print_performance_stat(self.balance_list.iloc[-1].squeeze().to_dict(), date_now, infmetrics)
         else:
             print(self.balance_list)
