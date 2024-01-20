@@ -20,6 +20,7 @@ from freqtrade.exceptions import ExchangeError, OperationalException
 from freqtrade.exchange import Exchange, timeframe_to_prev_date, timeframe_to_seconds
 from freqtrade.exchange.types import OrderBook
 from freqtrade.misc import append_candles_to_dataframe
+from freqtrade.plugins.perfcheck_renderers import PerformanceMeteredStrategy
 from freqtrade.rpc import RPCManager
 from freqtrade.rpc.rpc_types import RPCAnalyzedDFMsg
 from freqtrade.util import PeriodicCache
@@ -34,11 +35,11 @@ MAX_DATAFRAME_CANDLES = 1000
 class DataProvider:
 
     def __init__(
-        self,
-        config: Config,
-        exchange: Optional[Exchange],
-        pairlists=None,
-        rpc: Optional[RPCManager] = None
+            self,
+            config: Config,
+            exchange: Optional[Exchange],
+            pairlists=None,
+            rpc: Optional[RPCManager] = None
     ) -> None:
         self._config = config
         self._exchange = exchange
@@ -49,8 +50,7 @@ class DataProvider:
         self.__slice_date: Optional[datetime] = None
 
         self.__cached_pairs_backtesting: Dict[PairWithTimeframe, DataFrame] = {}
-        self.__producer_pairs_df: Dict[str,
-                                       Dict[PairWithTimeframe, Tuple[DataFrame, datetime]]] = {}
+        self.__producer_pairs_df: Dict[str, Dict[PairWithTimeframe, Tuple[DataFrame, datetime]]] = {}
         self.__producer_pairs: Dict[str, List[str]] = {}
         self._msg_queue: deque = deque()
 
@@ -62,6 +62,17 @@ class DataProvider:
 
         self.producers = self._config.get('external_message_consumer', {}).get('producers', [])
         self.external_data_enabled = len(self.producers) > 0
+
+        self.perfcheck_config = self._config.get("perfcheck_config", {})
+        self.relaunch_perfcheck()
+
+    def relaunch_perfcheck(self):
+        if self.perfcheck_config:
+            perfcheck_name = self.perfcheck_config.get("graph_name", self._config.get("bot_name"))
+            logger.info(f'Starting performance check for {perfcheck_name}')
+            self.performance_metered_strategy = PerformanceMeteredStrategy(self.perfcheck_config,
+                                                                           perfcheck_name,
+                                                                           self._config['runmode'].value)
 
     def _set_dataframe_max_index(self, limit_index: int):
         """
@@ -80,11 +91,11 @@ class DataProvider:
         self.__slice_date = limit_date
 
     def _set_cached_df(
-        self,
-        pair: str,
-        timeframe: str,
-        dataframe: DataFrame,
-        candle_type: CandleType
+            self,
+            pair: str,
+            timeframe: str,
+            dataframe: DataFrame,
+            candle_type: CandleType
     ) -> None:
         """
         Store cached Dataframe.
@@ -117,10 +128,10 @@ class DataProvider:
         return self.__producer_pairs.get(producer_name, []).copy()
 
     def _emit_df(
-        self,
-        pair_key: PairWithTimeframe,
-        dataframe: DataFrame,
-        new_candle: bool
+            self,
+            pair_key: PairWithTimeframe,
+            dataframe: DataFrame,
+            new_candle: bool
     ) -> None:
         """
         Send this dataframe as an ANALYZED_DF message to RPC
@@ -131,28 +142,28 @@ class DataProvider:
         """
         if self.__rpc:
             msg: RPCAnalyzedDFMsg = {
-                    'type': RPCMessageType.ANALYZED_DF,
-                    'data': {
-                        'key': pair_key,
-                        'df': dataframe.tail(1),
-                        'la': datetime.now(timezone.utc)
-                    }
+                'type': RPCMessageType.ANALYZED_DF,
+                'data': {
+                    'key': pair_key,
+                    'df': dataframe.tail(1),
+                    'la': datetime.now(timezone.utc)
                 }
+            }
             self.__rpc.send_msg(msg)
             if new_candle:
                 self.__rpc.send_msg({
-                        'type': RPCMessageType.NEW_CANDLE,
-                        'data': pair_key,
-                    })
+                    'type': RPCMessageType.NEW_CANDLE,
+                    'data': pair_key,
+                })
 
     def _replace_external_df(
-        self,
-        pair: str,
-        dataframe: DataFrame,
-        last_analyzed: datetime,
-        timeframe: str,
-        candle_type: CandleType,
-        producer_name: str = "default"
+            self,
+            pair: str,
+            dataframe: DataFrame,
+            last_analyzed: datetime,
+            timeframe: str,
+            candle_type: CandleType,
+            producer_name: str = "default"
     ) -> None:
         """
         Add the pair data to this class from an external source.
@@ -172,13 +183,13 @@ class DataProvider:
         logger.debug(f"External DataFrame for {pair_key} from {producer_name} added.")
 
     def _add_external_df(
-        self,
-        pair: str,
-        dataframe: DataFrame,
-        last_analyzed: datetime,
-        timeframe: str,
-        candle_type: CandleType,
-        producer_name: str = "default"
+            self,
+            pair: str,
+            dataframe: DataFrame,
+            last_analyzed: datetime,
+            timeframe: str,
+            candle_type: CandleType,
+            producer_name: str = "default"
     ) -> Tuple[bool, int]:
         """
         Append a candle to the existing external dataframe. The incoming dataframe
@@ -209,7 +220,7 @@ class DataProvider:
             return (True, 0)
 
         if (producer_name not in self.__producer_pairs_df
-           or pair_key not in self.__producer_pairs_df[producer_name]):
+                or pair_key not in self.__producer_pairs_df[producer_name]):
             # We don't have data from this producer yet,
             # or we don't have data for this pair_key
             # return False and 1000 for the full df
@@ -243,21 +254,21 @@ class DataProvider:
 
         # Everything is good, we appended
         self._replace_external_df(
-                    pair,
-                    appended_df,
-                    last_analyzed=last_analyzed,
-                    timeframe=timeframe,
-                    candle_type=candle_type,
-                    producer_name=producer_name
-                    )
+            pair,
+            appended_df,
+            last_analyzed=last_analyzed,
+            timeframe=timeframe,
+            candle_type=candle_type,
+            producer_name=producer_name
+        )
         return (True, 0)
 
     def get_producer_df(
-        self,
-        pair: str,
-        timeframe: Optional[str] = None,
-        candle_type: Optional[CandleType] = None,
-        producer_name: str = "default"
+            self,
+            pair: str,
+            timeframe: Optional[str] = None,
+            candle_type: Optional[CandleType] = None,
+            producer_name: str = "default"
     ) -> Tuple[DataFrame, datetime]:
         """
         Get the pair data from producers.
@@ -293,10 +304,10 @@ class DataProvider:
         self._pairlists = pairlists
 
     def historic_ohlcv(
-        self,
-        pair: str,
-        timeframe: str,
-        candle_type: str = ''
+            self,
+            pair: str,
+            timeframe: str,
+            candle_type: str = ''
     ) -> DataFrame:
         """
         Get stored historical candle (OHLCV) data
@@ -346,10 +357,10 @@ class DataProvider:
         return total_candles
 
     def get_pair_dataframe(
-        self,
-        pair: str,
-        timeframe: Optional[str] = None,
-        candle_type: str = ''
+            self,
+            pair: str,
+            timeframe: Optional[str] = None,
+            candle_type: str = ''
     ) -> DataFrame:
         """
         Return pair candle (OHLCV) data, either live or cached historical -- depending
@@ -456,11 +467,11 @@ class DataProvider:
         return list(self._exchange._klines.keys())
 
     def ohlcv(
-        self,
-        pair: str,
-        timeframe: Optional[str] = None,
-        copy: bool = True,
-        candle_type: str = ''
+            self,
+            pair: str,
+            timeframe: Optional[str] = None,
+            copy: bool = True,
+            candle_type: str = ''
     ) -> DataFrame:
         """
         Get candle (OHLCV) data for the given pair as DataFrame

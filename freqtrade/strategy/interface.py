@@ -17,6 +17,7 @@ from freqtrade.exceptions import OperationalException, StrategyError
 from freqtrade.exchange import timeframe_to_minutes, timeframe_to_next_date, timeframe_to_seconds
 from freqtrade.misc import remove_entry_exit_signals
 from freqtrade.persistence import Order, PairLocks, Trade
+# from freqtrade.plugins.perfcheck_renderers import PerformanceMeteredStrategy
 from freqtrade.strategy.hyper import HyperStrategyMixin
 from freqtrade.strategy.informative_decorator import (InformativeData, PopulateIndicators,
                                                       _create_and_merge_informative_pair,
@@ -54,7 +55,7 @@ class IStrategy(ABC, HyperStrategyMixin):
     stoploss: float
 
     # max open trades for the strategy
-    max_open_trades:  IntOrInf
+    max_open_trades: IntOrInf
 
     # trailing stoploss
     trailing_stop: bool = False
@@ -719,9 +720,9 @@ class IStrategy(ABC, HyperStrategyMixin):
         """
         return dataframe
 
-###
-# END - Intended to be overridden by strategy
-###
+    ###
+    # END - Intended to be overridden by strategy
+    ###
 
     _ft_stop_uses_after_fill = False
 
@@ -758,7 +759,6 @@ class IStrategy(ABC, HyperStrategyMixin):
             if inf_data.asset:
                 if any(s in inf_data.asset for s in ("{BASE}", "{base}")):
                     for pair in self.dp.current_whitelist():
-
                         pair_tf = (
                             _format_pair_name(self.config, inf_data.asset, self.dp.market(pair)),
                             inf_data.timeframe,
@@ -952,10 +952,10 @@ class IStrategy(ABC, HyperStrategyMixin):
                 raise StrategyError(message)
 
     def get_latest_candle(
-        self,
-        pair: str,
-        timeframe: str,
-        dataframe: DataFrame,
+            self,
+            pair: str,
+            timeframe: str,
+            dataframe: DataFrame,
     ) -> Tuple[Optional[DataFrame], Optional[datetime]]:
         """
         Calculates current signal based based on the entry order or exit order
@@ -987,11 +987,11 @@ class IStrategy(ABC, HyperStrategyMixin):
         return latest, latest_date
 
     def get_exit_signal(
-        self,
-        pair: str,
-        timeframe: str,
-        dataframe: DataFrame,
-        is_short: Optional[bool] = None
+            self,
+            pair: str,
+            timeframe: str,
+            dataframe: DataFrame,
+            is_short: Optional[bool] = None
     ) -> Tuple[bool, bool, Optional[str]]:
         """
         Calculates current exit signal based based on the dataframe
@@ -1025,10 +1025,10 @@ class IStrategy(ABC, HyperStrategyMixin):
         return enter, exit_, exit_tag
 
     def get_entry_signal(
-        self,
-        pair: str,
-        timeframe: str,
-        dataframe: DataFrame,
+            self,
+            pair: str,
+            timeframe: str,
+            dataframe: DataFrame,
     ) -> Tuple[Optional[SignalDirection], Optional[str]]:
         """
         Calculates current entry signal based based on the dataframe signals
@@ -1064,10 +1064,10 @@ class IStrategy(ABC, HyperStrategyMixin):
         timeframe_seconds = timeframe_to_seconds(timeframe)
 
         if self.ignore_expired_candle(
-            latest_date=latest_date,
-            current_time=dt_now(),
-            timeframe_seconds=timeframe_seconds,
-            enter=bool(enter_signal)
+                latest_date=latest_date,
+                current_time=dt_now(),
+                timeframe_seconds=timeframe_seconds,
+                enter=bool(enter_signal)
         ):
             return None, enter_tag
 
@@ -1076,11 +1076,11 @@ class IStrategy(ABC, HyperStrategyMixin):
         return enter_signal, enter_tag
 
     def ignore_expired_candle(
-        self,
-        latest_date: datetime,
-        current_time: datetime,
-        timeframe_seconds: int,
-        enter: bool
+            self,
+            latest_date: datetime,
+            current_time: datetime,
+            timeframe_seconds: int,
+            enter: bool
     ):
         if self.ignore_buying_expired_candle_after and enter:
             time_delta = current_time - (latest_date + timedelta(seconds=timeframe_seconds))
@@ -1100,9 +1100,11 @@ class IStrategy(ABC, HyperStrategyMixin):
         :param force_stoploss: Externally provided stoploss
         :return: List of exit reasons - or empty list.
         """
+
         exits: List[ExitCheckTuple] = []
         current_rate = rate
         current_profit = trade.calc_profit_ratio(current_rate)
+
         current_profit_best = current_profit
         if low is not None or high is not None:
             # Set current rate to high for backtesting ROI exits
@@ -1110,7 +1112,9 @@ class IStrategy(ABC, HyperStrategyMixin):
             current_profit_best = trade.calc_profit_ratio(current_rate_best)
 
         trade.adjust_min_max_rates(high or current_rate, low or current_rate)
-
+        if self.dp.perfcheck_config:
+            self.dp.performance_metered_strategy.custom_exit_callback(trade.pair, current_time, current_profit, trade,
+                                                                      self.wallets)
         stoplossflag = self.ft_stoploss_reached(current_rate=current_rate, trade=trade,
                                                 current_time=current_time,
                                                 current_profit=current_profit,
@@ -1143,9 +1147,9 @@ class IStrategy(ABC, HyperStrategyMixin):
                     else:
                         custom_reason = ''
             if (
-                exit_signal == ExitType.CUSTOM_EXIT
-                or (exit_signal == ExitType.EXIT_SIGNAL
-                    and (not self.exit_profit_only or current_profit > self.exit_profit_offset))
+                    exit_signal == ExitType.CUSTOM_EXIT
+                    or (exit_signal == ExitType.EXIT_SIGNAL
+                        and (not self.exit_profit_only or current_profit > self.exit_profit_offset))
             ):
                 logger.debug(f"{trade.pair} - Sell signal received. "
                              f"exit_type=ExitType.{exit_signal.name}" +
@@ -1159,7 +1163,6 @@ class IStrategy(ABC, HyperStrategyMixin):
         # Trailing stoploss
 
         if stoplossflag.exit_type in (ExitType.STOP_LOSS, ExitType.LIQUIDATION):
-
             logger.debug(f"{trade.pair} - Stoploss hit. exit_type={stoplossflag.exit_type}")
             exits.append(stoplossflag)
 
@@ -1168,7 +1171,6 @@ class IStrategy(ABC, HyperStrategyMixin):
             exits.append(ExitCheckTuple(exit_type=ExitType.ROI))
 
         if stoplossflag.exit_type == ExitType.TRAILING_STOP_LOSS:
-
             logger.debug(f"{trade.pair} - Trailing stoploss hit.")
             exits.append(stoplossflag)
 
@@ -1204,11 +1206,11 @@ class IStrategy(ABC, HyperStrategyMixin):
         if self.use_custom_stoploss and dir_correct:
             stop_loss_value_custom = strategy_safe_wrapper(
                 self.custom_stoploss, default_retval=None, supress_error=True
-                    )(pair=trade.pair, trade=trade,
-                        current_time=current_time,
-                        current_rate=(bound or current_rate),
-                        current_profit=bound_profit,
-                        after_fill=after_fill)
+            )(pair=trade.pair, trade=trade,
+              current_time=current_time,
+              current_rate=(bound or current_rate),
+              current_profit=bound_profit,
+              after_fill=after_fill)
             # Sanity check - error cases will return None
             if stop_loss_value_custom:
                 stop_loss_value = stop_loss_value_custom
@@ -1330,8 +1332,8 @@ class IStrategy(ABC, HyperStrategyMixin):
 
         return strategy_safe_wrapper(time_method,
                                      default_retval=False)(
-                                        pair=trade.pair, trade=trade, order=order,
-                                        current_time=current_time)
+            pair=trade.pair, trade=trade, order=order,
+            current_time=current_time)
 
     def advise_all_indicators(self, data: Dict[str, DataFrame]) -> Dict[str, DataFrame]:
         """

@@ -543,6 +543,7 @@ class Hyperopt:
             self.current_best_loss = val['loss']
             self.current_best_epoch = val
 
+        self.backtesting.strategy.dp.relaunch_perfcheck()
         self._save_result(val)
 
     def start(self) -> None:

@@ -4,6 +4,7 @@
 This module manage Telegram communication
 """
 import asyncio
+from os import path
 import json
 import logging
 import re
@@ -31,6 +32,7 @@ from freqtrade.enums import MarketDirection, RPCMessageType, SignalDirection, Tr
 from freqtrade.exceptions import OperationalException
 from freqtrade.misc import chunks, plural
 from freqtrade.persistence import Trade
+from freqtrade.plugins.perfcheck_renderers import render_graph, return_results
 from freqtrade.rpc import RPC, RPCException, RPCHandler
 from freqtrade.rpc.rpc_types import RPCEntryMsg, RPCExitMsg, RPCOrderMsg, RPCSendMsg
 from freqtrade.util import dt_humanize, fmt_coin, round_value
@@ -210,6 +212,8 @@ class Telegram(RPCHandler):
             CommandHandler('balance', self._balance),
             CommandHandler('start', self._start),
             CommandHandler('stop', self._stop),
+            CommandHandler('graph', self._graph),
+            CommandHandler('livegraph', self._live_graph),
             CommandHandler(['forcesell', 'forceexit', 'fx'], self._force_exit),
             CommandHandler(['forcebuy', 'forcelong'], partial(
                 self._force_enter, order_side=SignalDirection.LONG)),
@@ -1476,6 +1480,55 @@ class Telegram(RPCHandler):
                              reload_able=True, callback_path="update_count",
                              query=update.callback_query)
 
+    async def __render_graph(self, message=False):
+        freqtrade = self._rpc._freqtrade
+        if not freqtrade.strategy.dp.perfcheck_config:
+            await self._send_msg("Strategy is not being metered.", parse_mode=ParseMode.HTML)
+        else:
+
+            performance_meter = freqtrade.strategy.dp.performance_metered_strategy
+            # graph_name = performance_meter.perfcheck_config["name"]
+            if performance_meter.balance_list.shape[0] > 0:
+                blist = performance_meter.balance_list
+                print(blist)
+                graph = render_graph(blist, performance_meter.perfcheck_config)
+                graph_file_name = performance_meter.balance_filez
+                if message:
+                    image_file_path = return_results(graph, graph_file_name)
+                    logger.info(f"Fetching graph from {image_file_path}")
+                    await self._send_pic(image_file_path)
+                else:
+                    return_results(graph)
+                # await self.
+                # await self._send_msg(file_name, parse_mode=ParseMode.HTML)
+                # if not performance_meter.initialized:
+                #     await self.send_msg("Performance meter is not initialized.", parse_mode=ParseMode.HTML)
+                #     return
+            else:
+                await self._send_msg("Performance meter file not initialized", parse_mode=ParseMode.HTML)
+                return
+
+    async def _graph(self, update: Update, context: CallbackContext) -> None:
+        """
+        Handler for /count.
+        Returns the number of trades running
+        :param bot: telegram bot
+        :param update: message update
+        :return: None
+        """
+        await self.__render_graph(True)
+
+    async def _live_graph(self, update: Update, context: CallbackContext) -> None:
+        """
+        Handler for /count.
+        Returns the number of trades running
+        :param bot: telegram bot
+        :param update: message update
+        :return: None
+        """
+        await self.__render_graph(False)
+
+
     @authorized_only
     async def _locks(self, update: Update, context: CallbackContext) -> None:
         """
@@ -1795,6 +1848,30 @@ class Telegram(RPCHandler):
                 logger.warning('TelegramError: %s', e.message)
         except TelegramError as telegram_err:
             logger.warning('TelegramError: %s! Giving up on that message.', telegram_err.message)
+
+    async def _send_pic(self, pic_path: str) -> None:
+        try:
+            try:
+                await self._app.bot.send_photo(
+                    self._config['telegram']['chat_id'],
+                    photo=path.open(pic_path, "rb")
+                )
+            except NetworkError as network_err:
+                # Sometimes the telegram server resets the current connection,
+                # if this is the case we send the message again.
+                logger.warning(
+                    'Telegram NetworkError: %s! Trying one more time.',
+                    network_err.message
+                )
+                await self._app.bot.send_photo(
+                    self._config['telegram']['chat_id'],
+                    photo=path.open(pic_path, "rb")
+                )
+        except TelegramError as telegram_err:
+            logger.warning(
+                'TelegramError: %s! Giving up on that message.',
+                telegram_err.message
+            )
 
     async def _send_msg(self, msg: str, parse_mode: str = ParseMode.MARKDOWN,
                         disable_notification: bool = False,
