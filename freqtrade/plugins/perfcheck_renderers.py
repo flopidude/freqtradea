@@ -11,6 +11,7 @@ from rich.panel import Panel
 
 from freqtrade.persistence import Trade
 
+multiplier = 15
 
 def __render_many_graphs_mapped(dfds, name, ppl, remap=False, render_informative=True):
     fig = make_subplots(rows=1, cols=2)
@@ -157,7 +158,11 @@ def create_folder_if_does_not_exist(path):
     return path
 
 
-def calculate_ratios(account_values, append="", multiplier=15):
+def calculate_ratios(account_values, append="", custom_multiplier=None):
+    global multiplier
+    if custom_multiplier is not None:
+        multiplier = custom_multiplier
+
     multmax = 365 * (60 / multiplier) * 24
     try:
         # Convert the list of account values to a pandas series
@@ -210,9 +215,11 @@ class PerformanceMeteredStrategy():
     current_profits = {}
 
     def __init__(self, perfcheck_config, bot_name, runmode):
+        global multiplier
         self.perfcheck_config = perfcheck_config  # self.config.get("perfcheck_config")
         self.perfcheck_config["name"] = bot_name  # self.config.get("bot_name")
         self.runmode = runmode
+        multiplier = self.perfcheck_config['update_performance_minutes']
         # if "ask_name" not in self.perfcheck_config or not self.perfcheck_config["ask_name"]:
         #     self.perfcheck_config["name"] = self.config.get("bot_name")
         # else:

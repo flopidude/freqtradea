@@ -397,7 +397,8 @@ class Hyperopt:
         # path. We do not want to optimize 'hodl' strategies.
         loss: float = MAX_LOSS
         if trade_count >= self.config['hyperopt_min_trades']:
-            loss = self.calculate_loss(results=backtesting_results['results'],
+            results_to_check = backtesting_results['results'] if not self.backtesting.strategy.dp.perfcheck_config else self.backtesting.strategy.dp.performance_metered_strategy.balance_list
+            loss = self.calculate_loss(results=results_to_check,
                                        trade_count=trade_count,
                                        min_date=min_date, max_date=max_date,
                                        config=self.config, processed=processed,
