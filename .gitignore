@@ -5,6 +5,14 @@ config*.json
 *.sqlite-wal
 logfile.txt
 user_data/*
+my_data/*
+!my_data/strategy/sample_strategy.py
+!my_data/notebooks
+!my_data/models
+!my_data/freqaimodels
+my_data/freqaimodels/*
+my_data/models/*
+my_data/notebooks/*
 !user_data/strategy/sample_strategy.py
 !user_data/notebooks
 !user_data/models
@@ -114,3 +122,4 @@ target/
 !config_examples/config_full.example.json
 !config_examples/config_kraken.example.json
 !config_examples/config_freqai.example.json
+my_data/
