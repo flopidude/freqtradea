@@ -1,4 +1,5 @@
 import os
+import time
 from datetime import datetime, timedelta
 
 import numpy as np
@@ -10,6 +11,7 @@ from rich.live import Live
 from rich.panel import Panel
 
 from freqtrade.persistence import Trade
+
 
 multiplier = 15
 
@@ -213,13 +215,21 @@ class PerformanceMeteredStrategy():
     informative_strategies = {}
     last_checked_experimental = {}
     current_profits = {}
+    arbitrage_id = None
 
     def __init__(self, perfcheck_config, bot_name, runmode):
         global multiplier
         self.perfcheck_config = perfcheck_config  # self.config.get("perfcheck_config")
-        self.perfcheck_config["name"] = bot_name  # self.config.get("bot_name")
+        self.perfcheck_config["name"] = bot_name# self.config.get("bot_name")
         self.runmode = runmode
+        if "arbitrage-id" in self.perfcheck_config:
+            if "arbitrage-sum" not in self.perfcheck_config:
+                raise Exception("ID provided but no complimentary strategies")
+            self.perfcheck_config["name"] += f"_{self.perfcheck_config['arbitrage-id']}"
+            self.arbitrage_sum = self.perfcheck_config["arbitrage-sum"]
+            self.arbitrage_id = self.perfcheck_config["arbitrage-id"]
         multiplier = self.perfcheck_config['update_performance_minutes']
+
         # if "ask_name" not in self.perfcheck_config or not self.perfcheck_config["ask_name"]:
         #     self.perfcheck_config["name"] = self.config.get("bot_name")
         # else:
@@ -229,8 +239,23 @@ class PerformanceMeteredStrategy():
         # self.load_informative_strategies(self.perfcheck_config["informative_strategies"])
         self.balance_file_setter()
 
-    def post_trade(self, current_time, trade: Trade, current_rate):
+    def post_trade(self):
         self.balance_list.to_pickle(self.balance_filez)
+        if self.arbitrage_id is not None:
+            blist = self.balance_list.copy()#.rename(columns={"total": "total_" + self.arbitrage_id,
+                                                             # "used": "used_" + self.arbitrage_id,
+                                                             # "free": "free_" + self.arbitrage_id})
+            for sumr in self.arbitrage_sum:
+                fpath = self.balance_filez.replace(self.arbitrage_id, sumr)
+                while not os.path.exists(fpath):
+                    print("waiting for balance file", fpath)
+                    time.sleep(1)
+                df = pd.read_pickle(fpath).rename(columns={"total": "total_" + sumr,
+                                                             "used": "used_" + sumr,
+                                                             "free": "free_" + sumr})
+                blist = pd.merge(left_index=True, right_index=True, left=blist, right=df, how="left")
+                blist["total"] = blist["total"] + blist["total_" + sumr]
+            self.balance_list = blist
         return
 
     def bot_loop_start_callback(self, current_time, wallets):
@@ -272,7 +297,7 @@ class PerformanceMeteredStrategy():
             new_element.set_index('date', inplace=True)
             self.balance_list = self.balance_list.combine_first(new_element)
         else:
-            print("error - last balance is none")
+            print("error - last balance is none", current_time)
 
     def render_performance(self, current_time: datetime):
         date_now = pd.to_datetime(current_time).floor(f"{self.perfcheck_config['update_performance_minutes']}min")
@@ -357,9 +382,11 @@ class PerformanceMeteredStrategy():
         if self.perfcheck_config["default_exit_callback"] is None:
             self.perfcheck_config["default_exit_callback"] = False
         self.try_remove_pair(pair)
-        self.post_trade(current_time, trade, rate)
         self.render_difference(current_time)
-        self.render_performance(current_time)
+        if self.runmode not in ('hyperopt', "backtest"):
+            self.post_trade()
+            self.render_performance(current_time)
+
 
     def print_performance_stat(self, last_row_init, date, informative_metrics):
         print(date)

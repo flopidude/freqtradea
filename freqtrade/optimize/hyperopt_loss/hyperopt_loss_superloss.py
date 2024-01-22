@@ -11,8 +11,8 @@ from pandas import DataFrame
 from freqtrade.constants import Config
 from freqtrade.data.metrics import calculate_calmar
 from freqtrade.optimize.hyperopt import IHyperOptLoss
-
 from freqtrade.plugins.perfcheck_renderers import calculate_ratios
+
 
 class Supreme(IHyperOptLoss):
     """

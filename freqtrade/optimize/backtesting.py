@@ -211,6 +211,7 @@ class Backtesting:
         strategy.dp = self.dataprovider
         # Attach Wallets to Strategy baseclass
         strategy.wallets = self.wallets
+        strategy.exchange = self.exchange
         # Set stoploss_on_exchange to false for backtesting,
         # since a "perfect" stoploss-exit is assumed anyway
         # And the regular "stoploss" function would not apply to that case
@@ -663,10 +664,7 @@ class Backtesting:
                         close_rate = max(close_rate, row[LOW_IDX])
             # Confirm trade exit:
             time_in_force = self.strategy.order_time_in_force['exit']
-            if self.dataprovider.perfcheck_config:
-                self.dataprovider.performance_metered_strategy.confirm_trade_exit_callback(trade.pair, trade,
-                                                                                           close_rate, current_time,
-                                                                                           self.wallets)
+
             if (exit_.exit_type not in (ExitType.LIQUIDATION, ExitType.PARTIAL_EXIT)
                     and not strategy_safe_wrapper(
                         self.strategy.confirm_trade_exit, default_retval=True)(
@@ -717,6 +715,10 @@ class Backtesting:
         )
         order._trade_bt = trade
         trade.orders.append(order)
+        if self.dataprovider.perfcheck_config:
+            self.dataprovider.performance_metered_strategy.confirm_trade_exit_callback(trade.pair, trade,
+                                                                                       close_rate, trade.close_date_utc,
+                                                                                       self.wallets)
         return trade
 
     def _check_trade_exit(
@@ -965,10 +967,11 @@ class Backtesting:
                     # Ignore trade if entry-order did not fill yet
                     continue
                 exit_row = data[pair][-1]
+                trade.close_date = exit_row[DATE_IDX].to_pydatetime()
                 self._exit_trade(trade, exit_row, exit_row[OPEN_IDX], trade.amount)
                 trade.orders[-1].close_bt_order(exit_row[DATE_IDX].to_pydatetime(), trade)
 
-                trade.close_date = exit_row[DATE_IDX].to_pydatetime()
+
                 trade.exit_reason = ExitType.FORCE_EXIT.value
                 trade.close(exit_row[OPEN_IDX], show_msg=False)
                 LocalTrade.close_bt_trade(trade)
@@ -1336,12 +1339,16 @@ class Backtesting:
             end_date=max_date,
         )
 
+        if self.dataprovider.perfcheck_config:
+            self.dataprovider.performance_metered_strategy.post_trade()
         if self.config["runmode"].value in ("backtest") and self.dataprovider.perfcheck_config:
+            # self.dataprovider.performance_metered_strategy.post_trade()
             blist = self.dataprovider.performance_metered_strategy.balance_list
             if blist.shape[0] > 0:
                 from freqtrade.plugins.perfcheck_renderers import render_graph, return_results
                 graph = render_graph(blist, self.dataprovider.performance_metered_strategy.perfcheck_config)
                 return_results(graph)
+
 
         backtest_end_time = datetime.now(timezone.utc)
         results.update({

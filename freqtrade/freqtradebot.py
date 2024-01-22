@@ -103,6 +103,10 @@ class FreqtradeBot(LoggingMixin):
         # Attach Wallets to strategy instance
         self.strategy.wallets = self.wallets
 
+        self.strategy.exchange = self.exchange
+
+        self.strategy.exchange.force_enter = self.force_entry
+
         # Initializing Edge only if enabled
         self.edge = Edge(self.config, self.exchange, self.strategy) if \
             self.config.get('edge', {}).get('enabled', False) else None
@@ -149,6 +153,55 @@ class FreqtradeBot(LoggingMixin):
             'type': msg_type,
             'status': msg
         })
+
+    def force_entry(self, pair: str, price: Optional[float], *,
+                    order_type: Optional[str] = None,
+                    is_short: bool,
+                    stake_amount: Optional[float] = None,
+                    enter_tag: Optional[str] = 'force_entry',
+                    leverage: Optional[float] = None) -> Optional[Trade]:
+        """
+        Handler for forcebuy <asset> <price>
+        Buys a pair trade at the given or current price
+        """
+        trade: Optional[Trade] = Trade.get_trades(
+            [Trade.is_open.is_(True), Trade.pair == pair]).first()
+        if trade:
+            is_short = trade.is_short
+            if not self.strategy.position_adjustment_enable:
+                logger.error(f"position for {pair} already open - id: {trade.id}")
+                return
+            if trade.has_open_orders:
+                logger.error(f"position for {pair} already open - id: {trade.id} "
+                             f"and has open order {','.join(trade.open_orders_ids)}")
+                return
+        else:
+            if Trade.get_open_trade_count() >= self.config['max_open_trades']:
+                logger.error("Maximum number of trades is reached.")
+                return
+
+        if not stake_amount:
+            # gen stake amount
+            stake_amount = self.wallets.get_trade_stake_amount(
+                pair, self.config['max_open_trades'])
+
+        # execute buy
+        order_type = self.strategy.order_types.get(
+            'force_entry', self.strategy.order_types['entry'])
+
+        with self._exit_lock:
+            if self.execute_entry(pair, stake_amount, price,
+                                  ordertype=order_type, trade=trade,
+                                  is_short=is_short,
+                                  enter_tag=enter_tag,
+                                  leverage_=leverage,
+                                  ):
+                Trade.commit()
+                trade = Trade.get_trades([Trade.is_open.is_(True), Trade.pair == pair]).first()
+                return trade
+            else:
+                logger.error(f'Failed to enter position for {pair}.')
+                return
 
     def cleanup(self) -> None:
         """
@@ -773,7 +826,7 @@ class FreqtradeBot(LoggingMixin):
                 self.strategy.confirm_trade_entry, default_retval=True)(
             pair=pair, order_type=order_type, amount=amount, rate=enter_limit_requested,
             time_in_force=time_in_force, current_time=datetime.now(timezone.utc),
-                entry_tag=enter_tag, side=trade_side):
+            entry_tag=enter_tag, side=trade_side):
             logger.info(f"User denied entry for {pair}.")
             return False
         order = self.exchange.create_order(
@@ -1347,7 +1400,7 @@ class FreqtradeBot(LoggingMixin):
                 if not_closed:
                     if (fully_cancelled or (
                             open_order and self.strategy.ft_check_timed_out(
-                            trade, open_order, datetime.now(timezone.utc)))):
+                        trade, open_order, datetime.now(timezone.utc)))):
                         self.handle_cancel_order(
                             order, open_order, trade, constants.CANCEL_REASON['TIMEOUT']
                         )
