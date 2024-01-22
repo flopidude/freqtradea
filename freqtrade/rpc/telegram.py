@@ -4,6 +4,7 @@
 This module manage Telegram communication
 """
 import asyncio
+import functools
 import json
 import logging
 import re
@@ -36,11 +37,51 @@ from freqtrade.rpc import RPC, RPCException, RPCHandler
 from freqtrade.rpc.rpc_types import RPCEntryMsg, RPCExitMsg, RPCOrderMsg, RPCSendMsg
 from freqtrade.util import dt_humanize, fmt_coin, round_value
 
+
 MAX_MESSAGE_LENGTH = MessageLimit.MAX_TEXT_LENGTH
 
 logger = logging.getLogger(__name__)
 
 logger.debug('Included module rpc.telegram ...')
+
+
+# def makeRegisteringDecorator(foreignDecorator):
+#     """
+#         Returns a copy of foreignDecorator, which is identical in every
+#         way(*), except also appends a .decorator property to the callable it
+#         spits out.
+#     """
+#
+#     def newDecorator(func):
+#         # Call to newDecorator(method)
+#         # Exactly like old decorator, but output keeps track of what decorated it
+#         R = foreignDecorator(func)  # apply foreignDecorator, like call to foreignDecorator(method) would have done
+#         R.decorator = newDecorator  # keep track of decorator
+#         # R.original = func         # might as well keep track of everything!
+#         return R
+#
+#     newDecorator.__name__ = foreignDecorator.__name__
+#     newDecorator.__doc__ = foreignDecorator.__doc__
+#     # (*)We can be somewhat "hygienic", but newDecorator still isn't signature-preserving, i.e. you will not be able to get a runtime list of parameters. For that, you need hackish libraries...but in this case, the only argument is func, so it's not a big issue
+#
+#     return newDecorator
+
+
+# def telegram_hook(url):
+# def telegram_func(func):
+#     @functools.wraps(func)
+#     def wrapper_do_twice(*args, **kwargs):
+#         return func(*args, **kwargs)
+#
+#     return wrapper_do_twice
+
+# def telegram_callback_f(func):
+#     return func
+#
+#     # return telegram_func
+#
+#
+# telegram_callback_f = makeRegisteringDecorator(telegram_callback_f)
 
 
 def safe_async_db(func: Callable[..., Any]):
@@ -113,7 +154,26 @@ def authorized_only(command_handler: Callable[..., Coroutine[Any, Any, None]]):
 
 
 class Telegram(RPCHandler):
+    handled_functions = []
+
     """  This class handles all telegram communication """
+    # callback_handlers = {}
+    # def methodsWithDecorator(self, decorator):
+    #     """
+    #         Returns all methods in CLS with DECORATOR as the
+    #         outermost decorator.
+    #
+    #         DECORATOR must be a "registering decorator"; one
+    #         can make any decorator "registering" via the
+    #         makeRegisteringDecorator function.
+    #     """
+    #     for maybeDecorated in self._rpc._freqtrade.strategy.__dict__.values():
+    #         print(maybeDecorated)
+    #         if hasattr(maybeDecorated, 'decorator'):
+    #             print(maybeDecorated)
+    #             if maybeDecorated.decorator == decorator:
+    #                 print(maybeDecorated)
+    #                 yield maybeDecorated
 
     def __init__(self, rpc: RPC, config: Config) -> None:
         """
@@ -144,7 +204,7 @@ class Telegram(RPCHandler):
         self._keyboard: List[List[Union[str, KeyboardButton]]] = [
             ['/daily', '/profit', '/balance'],
             ['/status', '/status table', '/performance'],
-            ['/count', '/start', '/stop', '/help']
+            ['/count', '/start', '/graph', '/help']
         ]
         # do not allow commands with mandatory arguments and critical cmds
         # TODO: DRY! - its not good to list all valid cmds here. But otherwise
@@ -203,6 +263,12 @@ class Telegram(RPCHandler):
 
         self._app = self._init_telegram_app()
 
+        # handled_functions = list(self.methodsWithDecorator(telegram_callback_f))
+        # print(handled_functions)
+        self.handled_functions = self._config['telegram'].get("custom_commands", [])
+        # self.callback_handlers = {func.__name__: func for func in handled_functions}
+        custom_handles = [CommandHandler(func, self._custom_function_handler) for func in self.handled_functions]
+        logger.info("Custom handers: " + "".join([f'{func}, ' for func in self.handled_functions]))
         # Register command handler and start telegram message polling
         handles = [
             CommandHandler('status', self._status),
@@ -245,7 +311,7 @@ class Telegram(RPCHandler):
             CommandHandler('version', self._version),
             CommandHandler('marketdir', self._changemarketdir),
             CommandHandler('order', self._order),
-        ]
+        ] + custom_handles
         callbacks = [
             CallbackQueryHandler(self._status_table, pattern='update_status_table'),
             CallbackQueryHandler(self._daily, pattern='update_daily'),
@@ -1138,6 +1204,20 @@ class Telegram(RPCHandler):
         trade_id = int(context.args[0])
         msg = self._rpc._rpc_reload_trade_from_exchange(trade_id)
         await self._send_msg(f"Status: `{msg['status']}`")
+
+    async def _custom_function_handler(self, update: Update, context) -> None:
+        command_name = update.message.text.split(" ")[0].split("/")[1].strip()
+        logger.info(f'Invoking {command_name}')
+        # print(command_name)
+        try:
+            command_function = getattr(self._rpc._freqtrade.strategy, command_name)
+            # print(command_function)
+            result = command_function(context.args)
+            # print(result)
+            await self._send_msg(result)
+        except Exception as e:
+            logger.error(e)
+            await self._send_msg(f"Function not found")
 
     @authorized_only
     async def _force_exit(self, update: Update, context: CallbackContext) -> None:
