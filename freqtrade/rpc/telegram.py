@@ -1213,8 +1213,16 @@ class Telegram(RPCHandler):
             command_function = getattr(self._rpc._freqtrade.strategy, command_name)
             # print(command_function)
             result = command_function(context.args)
+            message = result["output"]
+            is_table = result["table"]
             # print(result)
-            await self._send_msg(result)
+            if is_table:
+                # await self._send_msg(message, parse_mode=ParseMode.HTML)
+                print("sending", message)
+                message = f"<pre>{message}</pre>"
+                await self._send_msg(message, parse_mode=ParseMode.HTML)
+            else:
+                await self._send_msg(message)
         except Exception as e:
             logger.error(e)
             await self._send_msg(f"Function not found")

@@ -69,6 +69,7 @@ class FreqtradeBot(LoggingMixin):
         remove_exchange_credentials(config['exchange'], True)
 
         self.strategy: IStrategy = StrategyResolver.load_strategy(self.config)
+        self.strategy._freqtrade = self
 
         # Check config consistency here since strategies can set certain options
         validate_config_consistency(config)
@@ -105,7 +106,7 @@ class FreqtradeBot(LoggingMixin):
 
         self.strategy.exchange = self.exchange
 
-        self.strategy.exchange.force_enter = self.force_entry
+        # self.strategy.exchange.force_enter = self.force_entry
 
         # Initializing Edge only if enabled
         self.edge = Edge(self.config, self.exchange, self.strategy) if \
@@ -159,16 +160,18 @@ class FreqtradeBot(LoggingMixin):
                     is_short: bool,
                     stake_amount: Optional[float] = None,
                     enter_tag: Optional[str] = 'force_entry',
-                    leverage: Optional[float] = None) -> Optional[Trade]:
+                    leverage: Optional[float] = None, enter_only: bool = True, grab_pair_dataframe: bool = True) -> Optional[Trade]:
         """
         Handler for forcebuy <asset> <price>
         Buys a pair trade at the given or current price
         """
+        if grab_pair_dataframe:
+            self.refresh_new_pair(pair)
         trade: Optional[Trade] = Trade.get_trades(
             [Trade.is_open.is_(True), Trade.pair == pair]).first()
         if trade:
             is_short = trade.is_short
-            if not self.strategy.position_adjustment_enable:
+            if (not self.strategy.position_adjustment_enable) or enter_only:
                 logger.error(f"position for {pair} already open - id: {trade.id}")
                 return
             if trade.has_open_orders:
@@ -198,6 +201,7 @@ class FreqtradeBot(LoggingMixin):
                                   ):
                 Trade.commit()
                 trade = Trade.get_trades([Trade.is_open.is_(True), Trade.pair == pair]).first()
+
                 return trade
             else:
                 logger.error(f'Failed to enter position for {pair}.')
@@ -252,6 +256,17 @@ class FreqtradeBot(LoggingMixin):
         # This will update the database after the initial migration
         self.startup_update_open_orders()
         self.update_funding_fees()
+
+    def refresh_new_pair(self, pair) -> None:
+        if pair not in self.pairlists.whitelist:
+            _whitelist = self.pairlists.whitelist
+            _whitelist.extend([pair for pair in [pair] if pair not in _whitelist])
+
+            # Refreshing candles
+            self.dataprovider.refresh(self.pairlists.create_pair_list(self.active_pair_whitelist),
+                                      self.strategy.gather_informative_pairs())
+
+            self.strategy.analyze_pair(pair)
 
     def process(self) -> None:
         """
