@@ -259,6 +259,7 @@ class FreqtradeBot(LoggingMixin):
 
     def refresh_new_pair(self, pair) -> None:
         if pair not in self.pairlists.whitelist:
+            logger.info("Temporarily extending the whitelist for pair " + pair + ".")
             _whitelist = self.pairlists.whitelist
             _whitelist.extend([pair for pair in [pair] if pair not in _whitelist])
 
