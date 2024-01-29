@@ -202,9 +202,10 @@ class Telegram(RPCHandler):
         section.
         """
         self._keyboard: List[List[Union[str, KeyboardButton]]] = [
-            ['/daily', '/profit', '/balance'],
+            ['/graph', '/profit'] + ["/"+i for i in self._config['telegram'].get("custom_commands", [])],
             ['/status', '/status table', '/performance'],
-            ['/count', '/start', '/graph', '/help']
+            ['/balance', '/start', '/daily', '/help'],
+
         ]
         # do not allow commands with mandatory arguments and critical cmds
         # TODO: DRY! - its not good to list all valid cmds here. But otherwise
