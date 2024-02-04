@@ -37,9 +37,9 @@ class Supreme(IHyperOptLoss):
         except Exception as e:
             print(e)
             ratios = {"sharpe_ratio": 0, "calmar_ratio": 0, "vwr_ratio": 0, "sortino_ratio": 0}
-        optimal_trades = 50
+        optimal_trades = 250
         optimal_data_points = 36
         multiplier = min(min(trade_count / optimal_trades, results.shape[0] / optimal_data_points), 1) ** 10
-        rating = ratios["vwr_ratio"] * multiplier * max(ratios["calmar_ratio"], 0)
+        rating = ratios["vwr_ratio"] * multiplier# * max(ratios["calmar_ratio"], 0)
         # print(expected_returns_mean, max_drawdown, calmar_ratio)
         return -rating

@@ -81,6 +81,7 @@ def __render_many_graphs_mapped(dfds, name, ppl, remap=False, render_informative
         ratio_values = []
 
         change_series = generate_mapped_returns(dfd["total"], dfd['total'][dfd.index[0]])
+        change_series_closed = generate_mapped_returns(dfd["closed_total"], dfd['total'][dfd.index[0]])
         metrics = calculate_ratios(change_series[0])
         for key, value in metrics.items():
             short_name = key.split("_")[0]
@@ -93,7 +94,7 @@ def __render_many_graphs_mapped(dfds, name, ppl, remap=False, render_informative
             orientation='h', name=ppl[ix], text=ratio_values, textposition="auto"), row=1, col=2)
         fig.add_trace(go.Scatter(x=dfd.index, y=change_series[0].tolist(),
                                  mode='lines+text',
-                                 name=f"Balance of {ppl[ix]} at {round(change_series[1], 2)}x",
+                                 name=f"Balance {round(change_series[1], 2)}x",
 
                                  text=[""],
                                  textposition="top right",
@@ -102,6 +103,9 @@ def __render_many_graphs_mapped(dfds, name, ppl, remap=False, render_informative
                                      size=18,
                                      color="crimson"
                                  )))
+        fig.add_trace(go.Scatter(x=dfd.index, y=change_series_closed[0].tolist(),
+                                 mode='lines',
+                                 name=f"Balance closed {round(change_series[1], 2)}x"))
     fig.update_layout(title=f'Plot of {name}',
                       xaxis_title='Date',
                       yaxis_title='Balance(USDT)')
@@ -291,8 +295,9 @@ class PerformanceMeteredStrategy():
             # self.last_checked = date_now
             used_usdt = self.wallets.get_used('USDT')
             usdt_free = self.wallets.get_free('USDT')
+            usdt_total = self.wallets.get_total('USDT')
             new_element = pd.DataFrame(
-                [{'date': date_now, 'total': current_balance, 'free': usdt_free, 'used': used_usdt} | pair_prices])
+                [{'date': date_now, 'total': current_balance, 'free': usdt_free, 'used': used_usdt, 'closed_total': usdt_total} | pair_prices])
 
             new_element.set_index('date', inplace=True)
             self.balance_list = self.balance_list.combine_first(new_element)
