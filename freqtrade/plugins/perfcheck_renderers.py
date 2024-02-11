@@ -9,6 +9,7 @@ from plotly.subplots import make_subplots
 from rich.layout import Layout
 from rich.live import Live
 from rich.panel import Panel
+from rich.prompt import Prompt
 
 from freqtrade.persistence import Trade
 
@@ -232,6 +233,10 @@ class PerformanceMeteredStrategy():
             self.perfcheck_config["name"] += f"_{self.perfcheck_config['arbitrage-id']}"
             self.arbitrage_sum = self.perfcheck_config["arbitrage-sum"]
             self.arbitrage_id = self.perfcheck_config["arbitrage-id"]
+        elif self.runmode in ("backtest"):
+            prepend = Prompt.ask("Name of config to prepend?").strip()
+            if len(prepend) > 0:
+                self.perfcheck_config["name"] = prepend + self.perfcheck_config["name"]
         multiplier = self.perfcheck_config['update_performance_minutes']
 
         # if "ask_name" not in self.perfcheck_config or not self.perfcheck_config["ask_name"]:

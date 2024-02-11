@@ -709,9 +709,12 @@ class LocalTrade:
             new_loss = float(current_price * (1 + abs(stoploss / leverage)))
         else:
             new_loss = float(current_price * (1 - abs(stoploss / leverage)))
-
-        stop_loss_norm = price_to_precision(new_loss, self.price_precision, self.precision_mode,
+        try:
+            stop_loss_norm = price_to_precision(new_loss, self.price_precision, self.precision_mode,
                                             rounding_mode=ROUND_DOWN if self.is_short else ROUND_UP)
+        except Exception as e:
+            logger.error("Failed to be adjust stoploss, " + str(e))
+            return
         # no stop loss assigned yet
         if self.initial_stop_loss_pct is None:
             self.__set_stop_loss(stop_loss_norm, stoploss)
