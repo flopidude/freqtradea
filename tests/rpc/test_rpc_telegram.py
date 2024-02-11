@@ -599,7 +599,7 @@ async def test_daily_handle(default_conf_usdt, update, ticker, fee, mocker, time
         get_fee=fee,
     )
 
-    telegram, freqtradebot, msg_mock = get_telegram_testobject(mocker, default_conf_usdt)
+    telegram, _freqtradebot, msg_mock = get_telegram_testobject(mocker, default_conf_usdt)
 
     # Move date to within day
     time_machine.move_to('2022-06-11 08:00:00+00:00')
@@ -1480,7 +1480,7 @@ async def test_telegram_performance_handle(default_conf_usdt, update, ticker, fe
         fetch_ticker=ticker,
         get_fee=fee,
     )
-    telegram, freqtradebot, msg_mock = get_telegram_testobject(mocker, default_conf_usdt)
+    telegram, _freqtradebot, msg_mock = get_telegram_testobject(mocker, default_conf_usdt)
 
     # Create some test data
     create_mock_trades_usdt(fee)
@@ -1655,7 +1655,7 @@ async def test_telegram_lock_handle(default_conf, update, ticker, fee, mocker) -
 
 async def test_whitelist_static(default_conf, update, mocker) -> None:
 
-    telegram, freqtradebot, msg_mock = get_telegram_testobject(mocker, default_conf)
+    telegram, _freqtradebot, msg_mock = get_telegram_testobject(mocker, default_conf)
 
     await telegram._whitelist(update=update, context=MagicMock())
     assert msg_mock.call_count == 1
@@ -2017,7 +2017,7 @@ def test_send_msg_enter_notification(default_conf, mocker, caplog, message_type,
     telegram, freqtradebot, msg_mock = get_telegram_testobject(mocker, default_conf)
 
     telegram.send_msg(msg)
-    leverage_text = f' ({leverage:.1g}x)' if leverage and leverage != 1.0 else ''
+    leverage_text = f' ({leverage:.3g}x)' if leverage and leverage != 1.0 else ''
 
     assert msg_mock.call_args[0][0] == (
         f'\N{LARGE BLUE CIRCLE} *Binance (dry):* New Trade (#1)\n'
@@ -2126,7 +2126,7 @@ def test_send_msg_entry_fill_notification(default_conf, mocker, message_type, en
         'amount': 1333.3333333333335,
         'open_date': dt_now() - timedelta(hours=1)
     })
-    leverage_text = f' ({leverage:.1g}x)' if leverage != 1.0 else ''
+    leverage_text = f' ({leverage:.3g}x)' if leverage != 1.0 else ''
     assert msg_mock.call_args[0][0] == (
         f'\N{CHECK MARK} *Binance (dry):* New Trade filled (#1)\n'
         f'*Pair:* `ETH/BTC`\n'
@@ -2365,7 +2365,7 @@ def test_send_msg_exit_fill_notification(default_conf, mocker, direction,
             'close_date': dt_now(),
         })
 
-        leverage_text = f' ({leverage:.1g}x)`\n' if leverage and leverage != 1.0 else '`\n'
+        leverage_text = f' ({leverage:.3g}x)`\n' if leverage and leverage != 1.0 else '`\n'
         assert msg_mock.call_args[0][0] == (
             '\N{WARNING SIGN} *Binance (dry):* Exited KEY/ETH (#1)\n'
             '*Profit:* `-57.41% (loss: -0.05746 ETH)`\n'
@@ -2458,7 +2458,7 @@ def test_send_msg_buy_notification_no_fiat(
         'open_date': dt_now() - timedelta(hours=1)
     })
 
-    leverage_text = f' ({leverage:.1g}x)' if leverage and leverage != 1.0 else ''
+    leverage_text = f' ({leverage:.3g}x)' if leverage and leverage != 1.0 else ''
     assert msg_mock.call_args[0][0] == (
         f'\N{LARGE BLUE CIRCLE} *Binance:* New Trade (#1)\n'
         '*Pair:* `ETH/BTC`\n'
@@ -2510,7 +2510,7 @@ def test_send_msg_exit_notification_no_fiat(
         'close_date': dt_now(),
     })
 
-    leverage_text = f' ({leverage:.1g}x)' if leverage and leverage != 1.0 else ''
+    leverage_text = f' ({leverage:.3g}x)' if leverage and leverage != 1.0 else ''
     assert msg_mock.call_args[0][0] == (
         '\N{WARNING SIGN} *Binance (dry):* Exiting KEY/ETH (#1)\n'
         '*Unrealized Profit:* `-57.41% (loss: -0.05746 ETH)`\n'
@@ -2647,7 +2647,7 @@ async def test__send_msg_keyboard(default_conf, mocker, caplog) -> None:
 
 
 async def test_change_market_direction(default_conf, mocker, update) -> None:
-    telegram, _, msg_mock = get_telegram_testobject(mocker, default_conf)
+    telegram, _, _msg_mock = get_telegram_testobject(mocker, default_conf)
     assert telegram._rpc._freqtrade.strategy.market_direction == MarketDirection.NONE
     context = MagicMock()
     context.args = ["long"]

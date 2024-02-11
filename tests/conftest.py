@@ -3,7 +3,7 @@ import json
 import logging
 import re
 from copy import deepcopy
-from datetime import timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Optional
 from unittest.mock import MagicMock, Mock, PropertyMock
@@ -18,13 +18,11 @@ from freqtrade.commands import Arguments
 from freqtrade.data.converter import ohlcv_to_dataframe, trades_list_to_df
 from freqtrade.edge import PairInfo
 from freqtrade.enums import CandleType, MarginMode, RunMode, SignalDirection, TradingMode
-from freqtrade.exchange import Exchange
-from freqtrade.exchange.exchange import timeframe_to_minutes
+from freqtrade.exchange import Exchange, timeframe_to_minutes, timeframe_to_seconds
 from freqtrade.freqtradebot import FreqtradeBot
 from freqtrade.persistence import LocalTrade, Order, Trade, init_db
 from freqtrade.resolvers import ExchangeResolver
-from freqtrade.util import dt_ts
-from freqtrade.util.datetime_helpers import dt_now
+from freqtrade.util import dt_now, dt_ts
 from freqtrade.worker import Worker
 from tests.conftest_trades import (leverage_trade, mock_trade_1, mock_trade_2, mock_trade_3,
                                    mock_trade_4, mock_trade_5, mock_trade_6, short_trade)
@@ -107,17 +105,62 @@ def get_args(args):
     return Arguments(args).get_parsed_arg()
 
 
+def generate_trades_history(n_rows, start_date: Optional[datetime] = None, days=5):
+    np.random.seed(42)
+    if not start_date:
+        start_date = datetime(2020, 1, 1, tzinfo=timezone.utc)
+
+        # Generate random data
+    end_date = start_date + timedelta(days=days)
+    _start_timestamp = start_date.timestamp()
+    _end_timestamp = pd.to_datetime(end_date).timestamp()
+
+    random_timestamps_in_seconds = np.random.uniform(_start_timestamp, _end_timestamp, n_rows)
+    timestamp = pd.to_datetime(random_timestamps_in_seconds, unit='s')
+
+    id = [
+        f'a{np.random.randint(1e6, 1e7 - 1)}cd{np.random.randint(100, 999)}'
+        for _ in range(n_rows)
+    ]
+
+    side = np.random.choice(['buy', 'sell'], n_rows)
+
+    # Initial price and subsequent changes
+    initial_price = 0.019626
+    price_changes = np.random.normal(0, initial_price * 0.05, n_rows)
+    price = np.cumsum(np.concatenate(([initial_price], price_changes)))[:n_rows]
+
+    amount = np.random.uniform(0.011, 20, n_rows)
+    cost = price * amount
+
+    # Create DataFrame
+    df = pd.DataFrame({'timestamp': timestamp, 'id': id, 'type': None, 'side': side,
+                       'price': price, 'amount': amount, 'cost': cost})
+    df['date'] = pd.to_datetime(df['timestamp'], unit='ms', utc=True)
+    df = df.sort_values('timestamp').reset_index(drop=True)
+    assert list(df.columns) == constants.DEFAULT_TRADES_COLUMNS + ['date']
+    return df
+
+
 def generate_test_data(timeframe: str, size: int, start: str = '2020-07-05'):
     np.random.seed(42)
 
     base = np.random.normal(20, 2, size=size)
-    if timeframe == '1M':
+    if timeframe == '1y':
+        date = pd.date_range(start, periods=size, freq='1YS', tz='UTC')
+    elif timeframe == '1M':
         date = pd.date_range(start, periods=size, freq='1MS', tz='UTC')
-    elif timeframe == '1w':
+    elif timeframe == '3M':
+        date = pd.date_range(start, periods=size, freq='3MS', tz='UTC')
+    elif timeframe == '1w' or timeframe == '7d':
         date = pd.date_range(start, periods=size, freq='1W-MON', tz='UTC')
     else:
         tf_mins = timeframe_to_minutes(timeframe)
-        date = pd.date_range(start, periods=size, freq=f'{tf_mins}min', tz='UTC')
+        if tf_mins >= 1:
+            date = pd.date_range(start, periods=size, freq=f'{tf_mins}min', tz='UTC')
+        else:
+            tf_secs = timeframe_to_seconds(timeframe)
+            date = pd.date_range(start, periods=size, freq=f'{tf_secs}s', tz='UTC')
     df = pd.DataFrame({
         'date': date,
         'open': base,
@@ -951,6 +994,58 @@ def get_markets():
                 },
                 'price': {
                     'min': 1e-08,
+                    'max': None,
+                },
+                'cost': {
+                    'min': None,
+                    'max': None,
+                },
+            },
+            'info': {
+                'maintenance_rate': '0.005',
+            },
+        },
+        'BTC/USDT': {
+            'id': 'USDT-BTC',
+            'symbol': 'BTC/USDT',
+            'base': 'BTC',
+            'quote': 'USDT',
+            'settle': None,
+            'baseId': 'BTC',
+            'quoteId': 'USDT',
+            'settleId': None,
+            'type': 'spot',
+            'spot': True,
+            'margin': True,
+            'swap': False,
+            'future': False,
+            'option': False,
+            'active': True,
+            'contract': None,
+            'linear': None,
+            'inverse': None,
+            'taker': 0.0006,
+            'maker': 0.0002,
+            'contractSize': None,
+            'expiry': None,
+            'expiryDateTime': None,
+            'strike': None,
+            'optionType': None,
+            'precision': {
+                'amount': 4,
+                'price': 4,
+            },
+            'limits': {
+                'leverage': {
+                    'min': 1,
+                    'max': 100,
+                },
+                'amount': {
+                    'min': 0.000221,
+                    'max': None,
+                },
+                'price': {
+                    'min': 1e-02,
                     'max': None,
                 },
                 'cost': {
@@ -3247,7 +3342,7 @@ def leverage_tiers():
                 'maintAmt': 386950.0
             },
         ],
-        "ADA/BUSD:BUSD": [
+        "ADA/USDT:USDT": [
             {
                 "minNotional": 0,
                 "maxNotional": 100000,
@@ -3291,7 +3386,7 @@ def leverage_tiers():
                 "maintAmt": 1527500.0
             },
         ],
-        'BNB/BUSD:BUSD': [
+        'XRP/USDT:USDT': [
             {
                 "minNotional": 0,       # stake(before leverage) = 0
                 "maxNotional": 100000,  # max stake(before leverage) = 5000
