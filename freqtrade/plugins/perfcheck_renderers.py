@@ -17,6 +17,8 @@ from freqtrade.persistence import Trade
 multiplier = 15
 
 def __render_many_graphs_mapped(dfds, name, ppl, remap=False, render_informative=True):
+    render_informative = True
+    remap = True
     fig = make_subplots(rows=1, cols=2)
     analyzed_tickers = []
     checked_tickers = []
@@ -35,7 +37,7 @@ def __render_many_graphs_mapped(dfds, name, ppl, remap=False, render_informative
         if remap:
             scalar_return = price_series.ffill().pct_change().dropna().mean()
             ma = scalar_return if scalar_return > max_return_scalar else max_return_scalar
-            current_multiplier = ma / scalar_return
+            current_multiplier = min(max(ma / scalar_return, 1), 10)
             print(f"Current multiplier: {current_multiplier}")
         else:
             current_multiplier = 1
@@ -49,6 +51,7 @@ def __render_many_graphs_mapped(dfds, name, ppl, remap=False, render_informative
                 splits = col.split("-")
                 if len(splits) > 1 and splits[1] not in checked_tickers:
                     informative_name = splits[1]
+                    print(informative_name)
                     scalar_return = dfd[col].ffill().pct_change().dropna().mean()
                     max_return_scalar = scalar_return if scalar_return > max_return_scalar else max_return_scalar
                     checked_tickers.append(splits[1])
@@ -60,8 +63,10 @@ def __render_many_graphs_mapped(dfds, name, ppl, remap=False, render_informative
             for col in dfd.columns.tolist():
                 splits = col.split("-")
 
+
                 if len(splits) > 1 and splits[1] not in analyzed_tickers:
                     informative_name = splits[1]
+                    print(informative_name)
                     change_series = generate_mapped_returns(dfd[col], dfd['total'][dfd.index[0]])
                     metrics = calculate_ratios(change_series[0])
                     for key, metric in metrics.items():
@@ -292,46 +297,52 @@ class PerformanceMeteredStrategy():
             self.informative_strategies[strategy] = pd.read_pickle(strategy_file_path)
 
     def render_difference(self, current_time: datetime):
-        date_now = pd.to_datetime(current_time).floor(f"{self.perfcheck_config['update_performance_minutes']}min")
-        informative_columns = []
-        pair_prices = {}
-        current_balance = self.calculate_total_profits()
-        if current_balance is not None:
-            # self.last_checked = date_now
-            used_usdt = self.wallets.get_used('USDT')
-            usdt_free = self.wallets.get_free('USDT')
-            usdt_total = self.wallets.get_total('USDT')
-            new_element = pd.DataFrame(
-                [{'date': date_now, 'total': current_balance, 'free': usdt_free, 'used': used_usdt, 'closed_total': usdt_total} | pair_prices])
+        if pd.to_datetime(current_time) is not None:
+            date_now = pd.to_datetime(current_time).floor(f"{self.perfcheck_config['update_performance_minutes']}min")
+            informative_columns = []
+            pair_prices = {}
+            current_balance = self.calculate_total_profits()
+            if current_balance is not None:
+                # self.last_checked = date_now
+                used_usdt = self.wallets.get_used('USDT')
+                usdt_free = self.wallets.get_free('USDT')
+                usdt_total = self.wallets.get_total('USDT')
+                new_element = pd.DataFrame(
+                    [{'date': date_now, 'total': current_balance, 'free': usdt_free, 'used': used_usdt, 'closed_total': usdt_total} | pair_prices])
 
-            new_element.set_index('date', inplace=True)
-            self.balance_list = self.balance_list.combine_first(new_element)
+                new_element.set_index('date', inplace=True)
+                self.balance_list = self.balance_list.combine_first(new_element)
+            else:
+                print("error - last balance is none", current_time)
         else:
-            print("error - last balance is none", current_time)
+            print("Error - current time is none", current_time)
 
     def render_performance(self, current_time: datetime):
-        date_now = pd.to_datetime(current_time).floor(f"{self.perfcheck_config['update_performance_minutes']}min")
-        metrics = calculate_ratios(self.balance_list["total"])
-        metrics["date"] = date_now
-        infmetrics = {}
-        informative_columns = []
-        for infcolname in informative_columns:
-            # print(infcolname)
-            metrics_informative = calculate_ratios(self.balance_list[infcolname],
-                                                   "-" + infcolname.split('-')[1])
-            infmetrics = infmetrics | metrics_informative
-        metrics = pd.DataFrame([metrics])
-        metrics.set_index('date', inplace=True)
-        self.balance_list = self.balance_list.combine_first(metrics)
-        if "date" in self.balance_list.columns:
-            self.balance_list.drop("date", axis=1, inplace=True)
-        self.balance_list.loc[:, self.metric_columns] = self.balance_list.loc[:, self.metric_columns].fillna(
-            method='ffill')
-        # print(self.balance_list)
-        if not self.runmode in ("hyperopt"):
-            self.print_performance_stat(self.balance_list.iloc[-1].squeeze().to_dict(), date_now, infmetrics)
+        if pd.to_datetime(current_time) is not None:
+            date_now = pd.to_datetime(current_time).floor(f"{self.perfcheck_config['update_performance_minutes']}min")
+            metrics = calculate_ratios(self.balance_list["total"])
+            metrics["date"] = date_now
+            infmetrics = {}
+            informative_columns = []
+            for infcolname in informative_columns:
+                # print(infcolname)
+                metrics_informative = calculate_ratios(self.balance_list[infcolname],
+                                                       "-" + infcolname.split('-')[1])
+                infmetrics = infmetrics | metrics_informative
+            metrics = pd.DataFrame([metrics])
+            metrics.set_index('date', inplace=True)
+            self.balance_list = self.balance_list.combine_first(metrics)
+            if "date" in self.balance_list.columns:
+                self.balance_list.drop("date", axis=1, inplace=True)
+            self.balance_list.loc[:, self.metric_columns] = self.balance_list.loc[:, self.metric_columns].fillna(
+                method='ffill')
+            # print(self.balance_list)
+            if not self.runmode in ("hyperopt"):
+                self.print_performance_stat(self.balance_list.iloc[-1].squeeze().to_dict(), date_now, infmetrics)
+            else:
+                print(self.balance_list)
         else:
-            print(self.balance_list)
+            print("Error - current time is none", current_time)
 
     def custom_exit_callback(self, feed_pair, current_time, current_profit, trade, wallets):
         self.initialized = True

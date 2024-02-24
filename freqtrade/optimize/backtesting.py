@@ -9,6 +9,7 @@ from copy import deepcopy
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional, Tuple
 
+import pandas as pd
 from numpy import nan
 from pandas import DataFrame
 
@@ -1353,6 +1354,14 @@ class Backtesting:
             blist = self.dataprovider.performance_metered_strategy.balance_list
             if blist.shape[0] > 0:
                 from freqtrade.plugins.perfcheck_renderers import render_graph, return_results
+                df = self.dataprovider.get_pair_dataframe("BTC/USDT:USDT", self.strategy.timeframe)
+                print(df)
+                # df, _ = self.dataprovider.get_analyzed_dataframe("BTC/USDT:USDT", self.strategy.timeframe)
+                df = df[["close", "date"]].rename(columns={"close": "price-btc"}).set_index("date")
+                df = df[df.index >= blist.index[0]]
+                blist = df.join(blist)
+                blist[["total", "free", "used"]].ffill(inplace=True)
+                print(blist)
                 graph = render_graph(blist, self.dataprovider.performance_metered_strategy.perfcheck_config)
                 return_results(graph)
 
