@@ -1507,7 +1507,7 @@ async def test_telegram_entry_tag_performance_handle(
     await telegram._enter_tag_performance(update=update, context=context)
     assert msg_mock.call_count == 1
     assert 'Entry Tag Performance' in msg_mock.call_args_list[0][0][0]
-    assert '<code>TEST1\t3.987 USDT (5.00%) (1)</code>' in msg_mock.call_args_list[0][0][0]
+    assert '`TEST1\t3.987 USDT (5.00%) (1)`' in msg_mock.call_args_list[0][0][0]
 
     context.args = ['XRP/USDT']
     await telegram._enter_tag_performance(update=update, context=context)
@@ -1538,7 +1538,7 @@ async def test_telegram_exit_reason_performance_handle(
     await telegram._exit_reason_performance(update=update, context=context)
     assert msg_mock.call_count == 1
     assert 'Exit Reason Performance' in msg_mock.call_args_list[0][0][0]
-    assert '<code>roi\t2.842 USDT (10.00%) (1)</code>' in msg_mock.call_args_list[0][0][0]
+    assert '`roi\t2.842 USDT (10.00%) (1)`' in msg_mock.call_args_list[0][0][0]
     context.args = ['XRP/USDT']
 
     await telegram._exit_reason_performance(update=update, context=context)
@@ -1570,7 +1570,7 @@ async def test_telegram_mix_tag_performance_handle(default_conf_usdt, update, ti
     await telegram._mix_tag_performance(update=update, context=context)
     assert msg_mock.call_count == 1
     assert 'Mix Tag Performance' in msg_mock.call_args_list[0][0][0]
-    assert ('<code>TEST3 roi\t2.842 USDT (10.00%) (1)</code>'
+    assert ('`TEST3 roi\t2.842 USDT (10.00%) (1)`'
             in msg_mock.call_args_list[0][0][0])
 
     context.args = ['XRP/USDT']
@@ -2557,22 +2557,22 @@ async def test_telegram__send_msg(default_conf, mocker, caplog) -> None:
 
     # Test update
     query = MagicMock()
+    query.edit_message_text = AsyncMock()
     await telegram._send_msg('test', callback_path="DeadBeef", query=query, reload_able=True)
-    edit_message_text = telegram._app.bot.edit_message_text
-    assert edit_message_text.call_count == 1
-    assert "Updated: " in edit_message_text.call_args_list[0][1]['text']
+    assert query.edit_message_text.call_count == 1
+    assert "Updated: " in query.edit_message_text.call_args_list[0][1]['text']
 
-    telegram._app.bot.edit_message_text = AsyncMock(side_effect=BadRequest("not modified"))
+    query.edit_message_text = AsyncMock(side_effect=BadRequest("not modified"))
     await telegram._send_msg('test', callback_path="DeadBeef", query=query)
-    assert telegram._app.bot.edit_message_text.call_count == 1
+    assert query.edit_message_text.call_count == 1
     assert not log_has_re(r"TelegramError: .*", caplog)
 
-    telegram._app.bot.edit_message_text = AsyncMock(side_effect=BadRequest(""))
+    query.edit_message_text = AsyncMock(side_effect=BadRequest(""))
     await telegram._send_msg('test2', callback_path="DeadBeef", query=query)
-    assert telegram._app.bot.edit_message_text.call_count == 1
+    assert query.edit_message_text.call_count == 1
     assert log_has_re(r"TelegramError: .*", caplog)
 
-    telegram._app.bot.edit_message_text = AsyncMock(side_effect=TelegramError("DeadBEEF"))
+    query.edit_message_text = AsyncMock(side_effect=TelegramError("DeadBEEF"))
     await telegram._send_msg('test3', callback_path="DeadBeef", query=query)
 
     assert log_has_re(r"TelegramError: DeadBEEF! Giving up.*", caplog)
