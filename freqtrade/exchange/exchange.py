@@ -8,7 +8,7 @@ import logging
 import signal
 from copy import deepcopy
 from datetime import datetime, timedelta, timezone
-from math import floor
+from math import floor, isnan
 from threading import Lock
 from typing import Any, Coroutine, Dict, List, Literal, Optional, Tuple, Union
 
@@ -659,7 +659,7 @@ class Exchange:
 
         candle_limit = self.ohlcv_candle_limit(
             timeframe, self._config['candle_type_def'],
-            int(date_minus_candles(timeframe, startup_candles).timestamp() * 1000)
+            dt_ts(date_minus_candles(timeframe, startup_candles))
             if timeframe else None)
         # Require one more candle - to account for the still open candle.
         candle_count = startup_candles + 1
@@ -2043,7 +2043,7 @@ class Exchange:
                 timeframe, candle_type, since_ms)
             move_to = one_call * self.required_candle_call_count
             now = timeframe_to_next_date(timeframe)
-            since_ms = int((now - timedelta(seconds=move_to // 1000)).timestamp() * 1000)
+            since_ms = dt_ts(now - timedelta(seconds=move_to // 1000))
 
         if since_ms:
             return self._async_get_historic_ohlcv(
@@ -2503,7 +2503,7 @@ class Exchange:
             )
 
         if type(since) is datetime:
-            since = int(since.timestamp()) * 1000   # * 1000 for ms
+            since = dt_ts(since)
 
         try:
             funding_history = self._api.fetch_funding_history(
@@ -2833,7 +2833,7 @@ class Exchange:
 
         if not close_date:
             close_date = datetime.now(timezone.utc)
-        since_ms = int(timeframe_to_prev_date(timeframe, open_date).timestamp()) * 1000
+        since_ms = dt_ts(timeframe_to_prev_date(timeframe, open_date))
 
         mark_comb: PairWithTimeframe = (pair, timeframe, mark_price_type)
         funding_comb: PairWithTimeframe = (pair, timeframe_ff, CandleType.FUNDING_RATE)
@@ -2887,7 +2887,7 @@ class Exchange:
             else:
                 # Fill up missing funding_rate candles with fallback value
                 combined = mark_rates.merge(
-                    funding_rates, on='date', how="outer", suffixes=["_mark", "_fund"]
+                    funding_rates, on='date', how="left", suffixes=["_mark", "_fund"]
                     )
                 combined['open_fund'] = combined['open_fund'].fillna(futures_funding_rate)
                 return combined
@@ -2916,7 +2916,8 @@ class Exchange:
         if not df.empty:
             df1 = df[(df['date'] >= open_date) & (df['date'] <= close_date)]
             fees = sum(df1['open_fund'] * df1['open_mark'] * amount)
-
+        if isnan(fees):
+            fees = 0.0
         # Negate fees for longs as funding_fees expects it this way based on live endpoints.
         return fees if is_short else -fees
 

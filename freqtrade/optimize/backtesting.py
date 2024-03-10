@@ -34,8 +34,8 @@ from freqtrade.optimize.optimize_reports import (generate_backtest_stats, genera
                                                  show_backtest_results,
                                                  store_backtest_analysis_results,
                                                  store_backtest_stats)
-from freqtrade.persistence import (LocalTrade, Order, PairLocks, Trade, disable_database_use,
-                                   enable_database_use)
+from freqtrade.persistence import (CustomDataWrapper, LocalTrade, Order, PairLocks, Trade,
+                                   disable_database_use, enable_database_use)
 from freqtrade.plugins.pairlistmanager import PairListManager
 from freqtrade.plugins.protectionmanager import ProtectionManager
 from freqtrade.resolvers import ExchangeResolver, StrategyResolver
@@ -202,7 +202,7 @@ class Backtesting:
 
         self.prepare_backtest(False)
 
-        self.wallets = Wallets(self.config, self.exchange, log=False)
+        self.wallets = Wallets(self.config, self.exchange, is_backtest=True)
 
         self.progress = BTProgress()
         self.abort = False
@@ -339,6 +339,7 @@ class Backtesting:
         self.disable_database_use()
         PairLocks.reset_locks()
         Trade.reset_trades()
+        CustomDataWrapper.reset_custom_data()
         self.rejected_trades = 0
         self.timedout_entry_orders = 0
         self.timedout_exit_orders = 0
