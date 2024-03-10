@@ -1354,15 +1354,17 @@ class Backtesting:
             blist = self.dataprovider.performance_metered_strategy.balance_list
             if blist.shape[0] > 0:
                 from freqtrade.plugins.perfcheck_renderers import render_graph, return_results
-                df = self.dataprovider.get_pair_dataframe("BTC/USDT:USDT", self.strategy.timeframe)
-                print(df)
+
+                # benchmark = generate_benchmark(self.dataprovider, results["results"])
+                # df = self.dataprovider.get_pair_dataframe("BTC/USDT:USDT", self.strategy.timeframe)
+                # print(df)
                 # df, _ = self.dataprovider.get_analyzed_dataframe("BTC/USDT:USDT", self.strategy.timeframe)
-                df = df[["close", "date"]].rename(columns={"close": "price-btc"}).set_index("date")
-                df = df[df.index >= blist.index[0]]
-                blist = df.join(blist)
-                blist[["total", "free", "used"]].ffill(inplace=True)
+                # df = df[["close", "date"]].rename(columns={"close": "price-btc"}).set_index("date")
+                # df = df[df.index >= blist.index[0]]
+                # blist = df.join(blist)
+                blist[["total", "free", "used", "closed_total"]].ffill(inplace=True)
                 print(blist)
-                graph = render_graph(blist, self.dataprovider.performance_metered_strategy.perfcheck_config)
+                graph = render_graph(blist, self.dataprovider.performance_metered_strategy.perfcheck_config, self.dataprovider, results["results"])
                 return_results(graph)
 
 

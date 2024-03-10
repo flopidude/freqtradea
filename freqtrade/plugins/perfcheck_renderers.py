@@ -14,7 +14,166 @@ from rich.prompt import Prompt
 from freqtrade.persistence import Trade
 
 
-multiplier = 15
+# multiplier = 15
+def calculate_ratios(account_values: pd.Series, benchmark_returns = None, append=""):
+    # Calculate dynamic multiplier based on average timedelta of the index
+    if not isinstance(account_values.index, pd.DatetimeIndex):
+        raise ValueError("Account series index must be a DatetimeIndex for dynamic multiplier calculation.")
+
+    time_deltas = account_values.index.to_series().diff().dropna()
+    average_delta = time_deltas.mean()
+    multiplier = average_delta.total_seconds() / 60
+    # print("MULTS", multiplier)
+
+    multmax = 365 * 24 * (60 / multiplier)
+    account_series = account_values
+    returns = account_series.pct_change().dropna()
+    risk_free = 0
+    max_drawdown = (account_series / account_series.cummax()).min() - 1
+
+    log_returns = np.log1p(returns)
+    log_mean_return = log_returns.mean() * multmax
+    log_std_return = log_returns.std() * np.sqrt(multmax)
+    variability_weighted_return = log_mean_return / log_std_return
+    sharpe_ratio = variability_weighted_return
+    calmar_ratio = (account_series.iloc[-1] / account_series.iloc[0] - 1) / abs(max_drawdown)
+    m2_ratio = None
+    if benchmark_returns is not None:
+        # benchmark_returns = benchmark_returns * 2
+        benchmark_returns = np.log1p(benchmark_returns.pct_change().dropna())
+        benchmark_std_log_returns = benchmark_returns.std() * np.sqrt(multmax)
+        m2_ratio = sharpe_ratio * benchmark_std_log_returns
+        print("m2 ratio", m2_ratio)
+
+    return {
+        f'sharpe_ratio{append}': sharpe_ratio,
+        f'calmar_ratio{append}': calmar_ratio,
+        f'sortino_ratio{append}': 0,
+        f'vwr_ratio{append}': variability_weighted_return,
+        f'm2_ratio{append}': m2_ratio
+    }
+
+def generate_benchmark(dp, trades, initial_investment=10000):
+    pair_trade_counts = trades.groupby('pair')['is_short'].apply(lambda x: (x == False).sum() - (x == True).sum()).to_dict()
+    total_trade_count = sum(abs(count) for count in pair_trade_counts.values())
+    pair_trade_percentages = {pair: (count / total_trade_count) for pair, count in pair_trade_counts.items()}
+    # print(pair_trade_counts, pair_trade_percentages)
+    # Generate a DataFrame consisting of total balance by each datapoint in the data column
+    balance_by_date = pd.DataFrame()
+
+    for pair, percentage in pair_trade_percentages.items():
+        pair_df = dp.get_pair_dataframe(pair)
+        allocated_balance = initial_investment * abs(percentage)  # Assuming initial_balance is available in dp
+        pair_df['allocated_balance'] = allocated_balance
+        change_series = pair_df['close'] / pair_df['close'].iloc[0] if percentage > 0 else pair_df['close'].iloc[0] / pair_df['close']
+        pair_short = pair.split('/')[0]
+        pair_df[f'total_value_{pair_short}'] = pair_df['allocated_balance'] * change_series
+
+        pair_df.set_index('date', inplace=True)
+        pair_df = pair_df[[f'total_value_{pair_short}']]
+        print(f"Profit for {pair_short} is {pair_df[f'total_value_{pair_short}'].iloc[-1]}, initial investment is {pair_df[f'total_value_{pair_short}'].iloc[0]}")
+        balance_by_date = balance_by_date.combine_first(pair_df)
+
+    balance_by_date = balance_by_date.ffill().bfill()
+
+    # print(balance_by_date)
+
+    balance_by_date["benchmark"] = (balance_by_date.sum(axis=1))
+    return balance_by_date
+
+def generate_profit_single_pair(dp, pair, initial_investment=10000):
+    pair_df = dp.get_pair_dataframe(pair)
+    pair_df['allocated_balance'] = initial_investment
+    change_series = pair_df['close'] / pair_df['close'].iloc[0] * pair_df['allocated_balance']
+    pair_df.set_index("date", inplace=True)
+    return change_series
+
+def render_perfcheck_simple(balance_df: pd.DataFrame, dp, perfconfig, trades: pd.DataFrame=None, initial_investment=None):
+    if initial_investment is None:
+        initial_investment = balance_df['closed_total'].iloc[0]
+
+    # Generate benchmark using the dataprovider and the initial investment
+    if trades is None or trades.shape[0] == 0:
+        benchmark_df = generate_profit_single_pair(dp, "BTC/USDT:USDT", initial_investment)
+    else:
+        benchmark_df = generate_benchmark(dp, trades, initial_investment)
+
+    fig = make_subplots(rows=1, cols=2)
+
+    # Add the account balance line
+    fig.add_trace(
+        go.Scatter(
+            x=balance_df.index,
+            y=balance_df['total'],
+            mode='lines',
+            name='Account Balance'
+        )
+    )
+    # Add the account closed balance line
+    fig.add_trace(
+        go.Scatter(
+            x=balance_df.index,
+            y=balance_df['closed_total'],
+            mode='lines',
+            name='Account Balance (Closed)'
+        )
+    )
+
+    # Add the benchmark line
+    fig.add_trace(
+        go.Scatter(
+            x=benchmark_df.index,
+            y=benchmark_df['benchmark'],
+            mode='lines',
+            name='Benchmark'
+        )
+    )
+
+    # Add performance metrics to the second column of the fig
+    ratios = calculate_ratios(balance_df['total'], benchmark_df['benchmark'])
+    ratio_names = list(ratios.keys())
+    ratio_values = list(ratios.values())
+
+    # Add a bar chart with the performance ratios
+    fig.add_trace(
+        go.Bar(
+            x=ratio_values,
+            y=ratio_names,
+            orientation='h',
+            name='Performance Ratios'
+        ),
+        row=1, col=2
+    )
+
+    ratios_benchmark = calculate_ratios(benchmark_df['benchmark'], balance_df['total'])
+    ratio_names_benchmark = list(ratios_benchmark.keys())
+    ratio_values_benchmark = list(ratios_benchmark.values())
+    # Add a bar chart with the performance ratios for the benchmark to the second column of the fig
+    fig.add_trace(
+        go.Bar(
+            x=ratio_values_benchmark,
+            y=ratio_names_benchmark,
+            orientation='h',
+            name='Benchmark Ratios'
+        ),
+        row=1, col=2
+    )
+
+        # Update layout for the second column
+    fig.update_yaxes(title_text='Ratios', row=1, col=2)
+    fig.update_xaxes(title_text='Values', row=1, col=2)
+    # Update layout to add titles and axis labels
+    fig.update_layout(
+        title='Account Balance and Benchmark Comparison',
+        xaxis_title='Date',
+        yaxis_title='Value'
+    )
+
+    return fig
+
+
+
+
 
 def __render_many_graphs_mapped(dfds, name, ppl, remap=False, render_informative=True):
     render_informative = True
@@ -142,14 +301,18 @@ def render_graph_by_files(file_names, remap=False, render_informative=False):
     return fig
 
 
-def render_graph(dataframe, perfconfig):
-    remap = perfconfig.get("remap", False)
-    name = perfconfig["name"]
-    render_informative = perfconfig.get("render_informative", False)
-    dfds = [dataframe]
-    names = [name]
-    artwork_name = name
-    fig = __render_many_graphs_mapped(dfds, artwork_name, names, remap, render_informative)
+# def render_graph(dataframe, perfconfig):
+#     remap = perfconfig.get("remap", False)
+#     name = perfconfig["name"]
+#     render_informative = perfconfig.get("render_informative", False)
+#     dfds = [dataframe]
+#     names = [name]
+#     artwork_name = name
+#     fig = __render_many_graphs_mapped(dfds, artwork_name, names, remap, render_informative)
+#     return fig
+
+def render_graph(dataframe, perfconfig, dp, trades):
+    fig = render_perfcheck_simple(dataframe, dp, perfconfig, trades)
     return fig
 
 
@@ -170,45 +333,7 @@ def create_folder_if_does_not_exist(path):
     return path
 
 
-def calculate_ratios(account_values, append="", custom_multiplier=None):
-    global multiplier
-    if custom_multiplier is not None:
-        multiplier = custom_multiplier
 
-    multmax = 365 * (60 / multiplier) * 24
-    try:
-        # Convert the list of account values to a pandas series
-        account_series = account_values
-        # Calculate the minute by minute returns
-        returns = account_series.pct_change().dropna()
-        risk_free = 0
-        # Calculate the sharpe ratio
-        # sharpe_ratio = (mean_return - risk_free) / std_return
-        # Calculate the maximum drawdown
-        max_drawdown = (account_series / account_series.cummax()).min() - 1
-
-        log_returns = np.log(1 + returns)
-        # Calculate the logarithmic mean return
-        log_mean_return = log_returns.mean() * multmax
-        # print(log_mean_return)
-        # Calculate the standard deviation of logarithmic returns
-        log_std_return = log_returns.std() * np.sqrt(multmax)
-        # Calculate the variability-weighted return
-        variability_weighted_return = (log_mean_return - risk_free) / log_std_return
-        sharpe_ratio = variability_weighted_return
-        calmar_ratio = (account_series.iloc[-1] / account_series.iloc[0] - 1) / abs(max_drawdown)
-
-        if np.isnan(sharpe_ratio) or np.isnan(calmar_ratio):
-            return {'sharpe_ratio' + append: 0, 'calmar_ratio' + append: 0,
-                    'sortino_ratio' + append: 0, 'vwr_ratio' + append: 0}
-
-        # Return the ratios as a dictionary
-        return {'sharpe_ratio' + append: sharpe_ratio, 'calmar_ratio' + append: calmar_ratio,
-                'sortino_ratio' + append: 0, 'vwr_ratio' + append: variability_weighted_return}
-    except Exception as e:
-        print("Exception occurred while calculating ratios", e)
-        return {'sharpe_ratio' + append: 0, 'calmar_ratio' + append: 0,
-                'sortino_ratio' + append: 0, 'vwr_ratio' + append: 0}
 
 
 class PerformanceMeteredStrategy():
