@@ -72,7 +72,7 @@ class DataProvider:
             logger.info(f'Starting performance check for {perfcheck_name}')
             self.performance_metered_strategy = PerformanceMeteredStrategy(self.perfcheck_config,
                                                                            perfcheck_name,
-                                                                           self._config['runmode'].value)
+                                                                           self._config['runmode'].value, self._config.get("timeframe", "1m"))
 
     def _set_dataframe_max_index(self, limit_index: int):
         """

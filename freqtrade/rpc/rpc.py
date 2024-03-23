@@ -17,6 +17,7 @@ from sqlalchemy import func, select
 from freqtrade import __version__
 from freqtrade.configuration.timerange import TimeRange
 from freqtrade.constants import CANCEL_REASON, Config
+from freqtrade.data.btanalysis import trade_list_to_dataframe
 from freqtrade.data.history import load_data
 from freqtrade.data.metrics import calculate_expectancy, calculate_max_drawdown
 from freqtrade.enums import (CandleType, ExitCheckTuple, ExitType, MarketDirection, SignalDirection,
@@ -1063,6 +1064,15 @@ class RPC:
         mix_tags = Trade.get_mix_tag_performance(pair)
 
         return mix_tags
+
+    def _rpc_all_trades(self) -> Any:
+        """
+        Handler for all trades.
+        Shows a performance statistic from finished trades
+        """
+        all_trades = trade_list_to_dataframe(Trade.get_open_trades()+Trade.get_closed_trades())
+
+        return all_trades
 
     def _rpc_count(self) -> Dict[str, float]:
         """ Returns the number of trades running """

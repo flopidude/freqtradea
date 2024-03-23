@@ -1572,17 +1572,19 @@ class Telegram(RPCHandler):
                              query=update.callback_query)
 
     async def __render_graph(self, message=False):
-        freqtrade = self._rpc._freqtrade
-        if not freqtrade.strategy.dp.perfcheck_config:
+        if not self._rpc._freqtrade.strategy.dp.perfcheck_config:
             await self._send_msg("Strategy is not being metered.", parse_mode=ParseMode.HTML)
         else:
 
-            performance_meter = freqtrade.strategy.dp.performance_metered_strategy
+            performance_meter = self._rpc._freqtrade.strategy.dp.performance_metered_strategy
             # graph_name = performance_meter.perfcheck_config["name"]
             if performance_meter.balance_list.shape[0] > 0:
                 blist = performance_meter.balance_list
-                print(blist)
-                graph = render_graph(blist, performance_meter.perfcheck_config)
+                trades = self._rpc._rpc_all_trades()
+                print(trades)
+                graph = render_graph(blist, performance_meter.perfcheck_config,
+                                     self._rpc._freqtrade.dataprovider, trades, self._rpc._freqtrade.strategy.timeframe)
+                # graph = render_graph(blist, performance_meter.perfcheck_config)
                 graph_file_name = performance_meter.balance_filez
                 if message:
                     image_file_path = return_results(graph, graph_file_name)

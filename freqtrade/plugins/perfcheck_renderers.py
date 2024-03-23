@@ -25,35 +25,44 @@ def calculate_ratios(account_values: pd.Series, benchmark_returns = None, append
     multiplier = average_delta.total_seconds() / 60
     # print("MULTS", multiplier)
 
-    multmax = 365 * 24 * (60 / multiplier)
-    account_series = account_values
-    returns = account_series.pct_change().dropna()
-    risk_free = 0
-    max_drawdown = (account_series / account_series.cummax()).min() - 1
+    try:
+        multmax = 365 * 24 * (60 / multiplier)
+        account_series = account_values
+        returns = account_series.pct_change().dropna()
+        risk_free = 0
+        max_drawdown = (account_series / account_series.cummax()).min() - 1
 
-    log_returns = np.log1p(returns)
-    log_mean_return = log_returns.mean() * multmax
-    log_std_return = log_returns.std() * np.sqrt(multmax)
-    variability_weighted_return = log_mean_return / log_std_return
-    sharpe_ratio = variability_weighted_return
-    calmar_ratio = (account_series.iloc[-1] / account_series.iloc[0] - 1) / abs(max_drawdown)
-    m2_ratio = None
-    if benchmark_returns is not None:
-        # benchmark_returns = benchmark_returns * 2
-        benchmark_returns = np.log1p(benchmark_returns.pct_change().dropna())
-        benchmark_std_log_returns = benchmark_returns.std() * np.sqrt(multmax)
-        m2_ratio = sharpe_ratio * benchmark_std_log_returns
-        print("m2 ratio", m2_ratio)
+        log_returns = np.log1p(returns)
+        log_mean_return = log_returns.mean() * multmax
+        log_std_return = log_returns.std() * np.sqrt(multmax)
+        variability_weighted_return = log_mean_return / log_std_return
+        sharpe_ratio = variability_weighted_return
+        calmar_ratio = (account_series.iloc[-1] / account_series.iloc[0] - 1) / abs(max_drawdown)
+        m2_ratio = None
+        if benchmark_returns is not None:
+            # benchmark_returns = benchmark_returns * 2
+            benchmark_returns = np.log1p(benchmark_returns.pct_change().dropna())
+            benchmark_std_log_returns = benchmark_returns.std() * np.sqrt(multmax)
+            m2_ratio = sharpe_ratio * benchmark_std_log_returns
+            # print("m2 ratio", m2_ratio)
 
-    return {
-        f'sharpe_ratio{append}': sharpe_ratio,
-        f'calmar_ratio{append}': calmar_ratio,
-        f'sortino_ratio{append}': 0,
-        f'vwr_ratio{append}': variability_weighted_return,
-        f'm2_ratio{append}': m2_ratio
-    }
+        return {
+            f'sharpe_ratio{append}': sharpe_ratio,
+            f'calmar_ratio{append}': calmar_ratio,
+            f'sortino_ratio{append}': 0,
+            f'vwr_ratio{append}': variability_weighted_return,
+            f'm2_ratio{append}': m2_ratio
+        }
+    except Exception as e:
+        return {
+            f'sharpe_ratio{append}': 0,
+            f'calmar_ratio{append}': 0,
+            f'sortino_ratio{append}': 0,
+            f'vwr_ratio{append}': 0,
+            f'm2_ratio{append}': 0
+        }
 
-def generate_benchmark(dp, trades, initial_investment=10000):
+def generate_benchmark(dp, trades, first_date, initial_investment=10000, timeframe="1m"):
     pair_trade_counts = trades.groupby('pair')['is_short'].apply(lambda x: (x == False).sum() - (x == True).sum()).to_dict()
     total_trade_count = sum(abs(count) for count in pair_trade_counts.values())
     pair_trade_percentages = {pair: (count / total_trade_count) for pair, count in pair_trade_counts.items()}
@@ -62,7 +71,9 @@ def generate_benchmark(dp, trades, initial_investment=10000):
     balance_by_date = pd.DataFrame()
 
     for pair, percentage in pair_trade_percentages.items():
-        pair_df = dp.get_pair_dataframe(pair)
+        pair_df = dp.historic_ohlcv(pair, timeframe)
+        pair_df = pair_df[pair_df['date'] >= first_date]
+        print(pair_df)
         allocated_balance = initial_investment * abs(percentage)  # Assuming initial_balance is available in dp
         pair_df['allocated_balance'] = allocated_balance
         change_series = pair_df['close'] / pair_df['close'].iloc[0] if percentage > 0 else pair_df['close'].iloc[0] / pair_df['close']
@@ -81,22 +92,30 @@ def generate_benchmark(dp, trades, initial_investment=10000):
     balance_by_date["benchmark"] = (balance_by_date.sum(axis=1))
     return balance_by_date
 
-def generate_profit_single_pair(dp, pair, initial_investment=10000):
-    pair_df = dp.get_pair_dataframe(pair)
+def generate_profit_single_pair(dp, pair, first_date, initial_investment=10000, timeframe="1m"):
+    pair_df = dp.historic_ohlcv(pair, timeframe)
+    pair_df = pair_df[pair_df['date'] >= first_date]
+    print(pair_df)
     pair_df['allocated_balance'] = initial_investment
-    change_series = pair_df['close'] / pair_df['close'].iloc[0] * pair_df['allocated_balance']
+    pair_df['benchmark'] = pair_df['close'] / pair_df['close'].iloc[0] * pair_df['allocated_balance']
     pair_df.set_index("date", inplace=True)
-    return change_series
+    print(pair_df)
+    return pair_df
 
-def render_perfcheck_simple(balance_df: pd.DataFrame, dp, perfconfig, trades: pd.DataFrame=None, initial_investment=None):
-    if initial_investment is None:
-        initial_investment = balance_df['closed_total'].iloc[0]
-
+def render_perfcheck_simple(balance_df: pd.DataFrame, dp, perfconfig, trades: pd.DataFrame=None, initial_investment=None, timeframe="1m"):
+    initial_investment = next(item for item in [initial_investment, balance_df['closed_total'].bfill().iloc[0], 10000] if item is not None)
     # Generate benchmark using the dataprovider and the initial investment
+    first_date = balance_df.index[0]
     if trades is None or trades.shape[0] == 0:
-        benchmark_df = generate_profit_single_pair(dp, "BTC/USDT:USDT", initial_investment)
+        benchmark_df = generate_profit_single_pair(dp, "BTC/USDT:USDT", first_date, initial_investment, timeframe)
     else:
-        benchmark_df = generate_benchmark(dp, trades, initial_investment)
+        try:
+            benchmark_df = generate_benchmark(dp, trades, first_date, initial_investment, timeframe)
+        except Exception as e:
+            benchmark_df = generate_profit_single_pair(dp, "BTC/USDT:USDT", first_date, initial_investment, timeframe)
+            print("Error generating benchmark:", e)
+
+    print(benchmark_df)
 
     fig = make_subplots(rows=1, cols=2)
 
@@ -311,8 +330,8 @@ def render_graph_by_files(file_names, remap=False, render_informative=False):
 #     fig = __render_many_graphs_mapped(dfds, artwork_name, names, remap, render_informative)
 #     return fig
 
-def render_graph(dataframe, perfconfig, dp, trades):
-    fig = render_perfcheck_simple(dataframe, dp, perfconfig, trades)
+def render_graph(dataframe, perfconfig, dp, trades, timeframe="1m"):
+    fig = render_perfcheck_simple(dataframe, dp, perfconfig, trades, timeframe=timeframe)
     return fig
 
 
@@ -352,7 +371,8 @@ class PerformanceMeteredStrategy():
     current_profits = {}
     arbitrage_id = None
 
-    def __init__(self, perfcheck_config, bot_name, runmode):
+    def __init__(self, perfcheck_config, bot_name, runmode, timeframe):
+        self.timeframe = timeframe
         global multiplier
         self.perfcheck_config = perfcheck_config  # self.config.get("perfcheck_config")
         self.perfcheck_config["name"] = bot_name# self.config.get("bot_name")
