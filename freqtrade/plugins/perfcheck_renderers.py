@@ -12,19 +12,16 @@ from rich.panel import Panel
 from rich.prompt import Prompt
 
 from freqtrade.persistence import Trade
-
-
+from freqtrade.exchange import timeframe_to_minutes
+from freqtrade.exchange import timeframe_to_minutes
 # multiplier = 15
-def calculate_ratios(account_values: pd.Series, benchmark_returns = None, append=""):
+def calculate_ratios(account_values: pd.Series, benchmark_returns = None, timeframe="1m"):
     # Calculate dynamic multiplier based on average timedelta of the index
-    if not isinstance(account_values.index, pd.DatetimeIndex):
-        raise ValueError("Account series index must be a DatetimeIndex for dynamic multiplier calculation.")
-
-    time_deltas = account_values.index.to_series().diff().dropna()
-    average_delta = time_deltas.mean()
-    multiplier = average_delta.total_seconds() / 60
-    # print("MULTS", multiplier)
-
+    multiplier = timeframe_to_minutes(timeframe)
+    print("Timeframe multiplier", multiplier)
+    sharpe_ratio = None
+    calmar_ratio = None
+    m2_ratio = None
     try:
         multmax = 365 * 24 * (60 / multiplier)
         account_series = account_values
@@ -35,31 +32,21 @@ def calculate_ratios(account_values: pd.Series, benchmark_returns = None, append
         log_returns = np.log1p(returns)
         log_mean_return = log_returns.mean() * multmax
         log_std_return = log_returns.std() * np.sqrt(multmax)
-        variability_weighted_return = log_mean_return / log_std_return
-        sharpe_ratio = variability_weighted_return
+        sharpe_ratio = log_mean_return / log_std_return
         calmar_ratio = (account_series.iloc[-1] / account_series.iloc[0] - 1) / abs(max_drawdown)
         m2_ratio = None
         if benchmark_returns is not None:
-            # benchmark_returns = benchmark_returns * 2
             benchmark_returns = np.log1p(benchmark_returns.pct_change().dropna())
             benchmark_std_log_returns = benchmark_returns.std() * np.sqrt(multmax)
             m2_ratio = sharpe_ratio * benchmark_std_log_returns
-            # print("m2 ratio", m2_ratio)
 
-        return {
-            f'sharpe_ratio{append}': sharpe_ratio,
-            f'calmar_ratio{append}': calmar_ratio,
-            f'sortino_ratio{append}': 0,
-            f'vwr_ratio{append}': variability_weighted_return,
-            f'm2_ratio{append}': m2_ratio
-        }
     except Exception as e:
+        print(e)
+    finally:
         return {
-            f'sharpe_ratio{append}': 0,
-            f'calmar_ratio{append}': 0,
-            f'sortino_ratio{append}': 0,
-            f'vwr_ratio{append}': 0,
-            f'm2_ratio{append}': 0
+            f'sharpe_ratio': sharpe_ratio,
+            f'calmar_ratio': calmar_ratio,
+            f'm2_ratio': m2_ratio
         }
 
 def generate_benchmark(dp, trades, first_date, initial_investment=10000, timeframe="1m"):
@@ -149,7 +136,7 @@ def render_perfcheck_simple(balance_df: pd.DataFrame, dp, perfconfig, trades: pd
     )
 
     # Add performance metrics to the second column of the fig
-    ratios = calculate_ratios(balance_df['total'], benchmark_df['benchmark'])
+    ratios = calculate_ratios(balance_df['total'], benchmark_df['benchmark'], timeframe)
     ratio_names = list(ratios.keys())
     ratio_values = list(ratios.values())
 
@@ -164,7 +151,7 @@ def render_perfcheck_simple(balance_df: pd.DataFrame, dp, perfconfig, trades: pd
         row=1, col=2
     )
 
-    ratios_benchmark = calculate_ratios(benchmark_df['benchmark'], balance_df['total'])
+    ratios_benchmark = calculate_ratios(benchmark_df['benchmark'], balance_df['total'], timeframe)
     ratio_names_benchmark = list(ratios_benchmark.keys())
     ratio_values_benchmark = list(ratios_benchmark.values())
     # Add a bar chart with the performance ratios for the benchmark to the second column of the fig
@@ -193,144 +180,8 @@ def render_perfcheck_simple(balance_df: pd.DataFrame, dp, perfconfig, trades: pd
 
 
 
-
-def __render_many_graphs_mapped(dfds, name, ppl, remap=False, render_informative=True):
-    render_informative = True
-    remap = True
-    fig = make_subplots(rows=1, cols=2)
-    analyzed_tickers = []
-    checked_tickers = []
-    leverages = [1]
-
-    def transform_ratio_values(short_name, ratio_value):
-        if short_name == "calmar":
-            ratio_value = ratio_value / 5
-        elif short_name == "omega":
-            ratio_value = (ratio_value - 1) * 100 / 2
-        return ratio_value
-
-    max_return_scalar = 0
-
-    def generate_mapped_returns(price_series, initial_investement):
-        if remap:
-            scalar_return = price_series.ffill().pct_change().dropna().mean()
-            ma = scalar_return if scalar_return > max_return_scalar else max_return_scalar
-            current_multiplier = min(max(ma / scalar_return, 1), 10)
-            print(f"Current multiplier: {current_multiplier}")
-        else:
-            current_multiplier = 1
-        cum_change = 1 + price_series.fillna(method="ffill").pct_change().dropna() * current_multiplier
-        change_series = cum_change.cumprod() * initial_investement
-        return [change_series, current_multiplier]
-
-    for dfd in dfds:
-        if render_informative:
-            for col in dfd.columns.tolist():
-                splits = col.split("-")
-                if len(splits) > 1 and splits[1] not in checked_tickers:
-                    informative_name = splits[1]
-                    print(informative_name)
-                    scalar_return = dfd[col].ffill().pct_change().dropna().mean()
-                    max_return_scalar = scalar_return if scalar_return > max_return_scalar else max_return_scalar
-                    checked_tickers.append(splits[1])
-        scalar_return = dfd["total"].ffill().pct_change().dropna().mean()
-        max_return_scalar = scalar_return if scalar_return > max_return_scalar else max_return_scalar
-
-    for ix, dfd in enumerate(dfds):
-        if render_informative:
-            for col in dfd.columns.tolist():
-                splits = col.split("-")
-
-
-                if len(splits) > 1 and splits[1] not in analyzed_tickers:
-                    informative_name = splits[1]
-                    print(informative_name)
-                    change_series = generate_mapped_returns(dfd[col], dfd['total'][dfd.index[0]])
-                    metrics = calculate_ratios(change_series[0])
-                    for key, metric in metrics.items():
-                        metrics[key] = transform_ratio_values(key.split("_")[0], metric)
-                    ratio_names = [ip.split("_")[0] for ip in list(metrics.keys())]
-                    ratio_values = list(metrics.values())
-                    fig.add_trace(go.Scatter(x=dfd.index, y=change_series[0], opacity=.4,
-                                             mode='lines',
-                                             name=f"{informative_name} at {round(change_series[1], 2)}x"))
-                    fig.add_trace(go.Bar(
-                        x=ratio_values,
-                        y=ratio_names,
-                        orientation='h', name=f"{informative_name}", text=ratio_values,
-                        textposition="auto"), row=1, col=2)
-                    analyzed_tickers.append(splits[1])
-
-        ratio_names = []
-        ratio_values = []
-
-        change_series = generate_mapped_returns(dfd["total"], dfd['total'][dfd.index[0]])
-        change_series_closed = generate_mapped_returns(dfd["closed_total"], dfd['total'][dfd.index[0]])
-        metrics = calculate_ratios(change_series[0])
-        for key, value in metrics.items():
-            short_name = key.split("_")[0]
-            ratio_names.append(short_name)
-            ratio_values.append(transform_ratio_values(short_name, value))
-
-        fig.add_trace(go.Bar(
-            x=ratio_values,
-            y=ratio_names,
-            orientation='h', name=ppl[ix], text=ratio_values, textposition="auto"), row=1, col=2)
-        fig.add_trace(go.Scatter(x=dfd.index, y=change_series[0].tolist(),
-                                 mode='lines+text',
-                                 name=f"Balance {round(change_series[1], 2)}x",
-
-                                 text=[""],
-                                 textposition="top right",
-                                 textfont=dict(
-                                     family="sans serif",
-                                     size=18,
-                                     color="crimson"
-                                 )))
-        fig.add_trace(go.Scatter(x=dfd.index, y=change_series_closed[0].tolist(),
-                                 mode='lines',
-                                 name=f"Balance closed {round(change_series[1], 2)}x"))
-    fig.update_layout(title=f'Plot of {name}',
-                      xaxis_title='Date',
-                      yaxis_title='Balance(USDT)')
-    return fig
-
-
-def render_graph_by_files(file_names, remap=False, render_informative=False):
-    dfds = []
-    names = []
-    for name in file_names:
-        file_name = name
-        if os.path.exists(file_name):
-            dfd = pd.read_pickle(file_name)
-            if 'date' in dfd.columns.tolist() and not dfd["date"].isna().any():
-                dfd.set_index("date", inplace=True)
-            dfd.sort_index(inplace=True)
-            dfds.append(dfd)
-            names.append(name)
-        else:
-            return None
-
-    artwork_name = ''.join([i.split('/')[-1].split(".")[0] for i in
-                            file_names])  # TODO: could be generated later outside of this class's scope
-
-    # Set the title and axis labels
-    fig = __render_many_graphs_mapped(dfds, artwork_name, names, remap, render_informative)
-
-    return fig
-
-
-# def render_graph(dataframe, perfconfig):
-#     remap = perfconfig.get("remap", False)
-#     name = perfconfig["name"]
-#     render_informative = perfconfig.get("render_informative", False)
-#     dfds = [dataframe]
-#     names = [name]
-#     artwork_name = name
-#     fig = __render_many_graphs_mapped(dfds, artwork_name, names, remap, render_informative)
-#     return fig
-
 def render_graph(dataframe, perfconfig, dp, trades, timeframe="1m"):
+    print(dataframe, "GRAPHDATA")
     fig = render_perfcheck_simple(dataframe, dp, perfconfig, trades, timeframe=timeframe)
     return fig
 
@@ -462,33 +313,6 @@ class PerformanceMeteredStrategy():
         else:
             print("Error - current time is none", current_time)
 
-    def render_performance(self, current_time: datetime):
-        if pd.to_datetime(current_time) is not None:
-            date_now = pd.to_datetime(current_time).floor(f"{self.perfcheck_config['update_performance_minutes']}min")
-            metrics = calculate_ratios(self.balance_list["total"])
-            metrics["date"] = date_now
-            infmetrics = {}
-            informative_columns = []
-            for infcolname in informative_columns:
-                # print(infcolname)
-                metrics_informative = calculate_ratios(self.balance_list[infcolname],
-                                                       "-" + infcolname.split('-')[1])
-                infmetrics = infmetrics | metrics_informative
-            metrics = pd.DataFrame([metrics])
-            metrics.set_index('date', inplace=True)
-            self.balance_list = self.balance_list.combine_first(metrics)
-            if "date" in self.balance_list.columns:
-                self.balance_list.drop("date", axis=1, inplace=True)
-            self.balance_list.loc[:, self.metric_columns] = self.balance_list.loc[:, self.metric_columns].fillna(
-                method='ffill')
-            # print(self.balance_list)
-            if not self.runmode in ("hyperopt"):
-                self.print_performance_stat(self.balance_list.iloc[-1].squeeze().to_dict(), date_now, infmetrics)
-            else:
-                print(self.balance_list)
-        else:
-            print("Error - current time is none", current_time)
-
     def custom_exit_callback(self, feed_pair, current_time, current_profit, trade, wallets):
         self.initialized = True
         # print(self.initialized)
@@ -551,7 +375,6 @@ class PerformanceMeteredStrategy():
         self.render_difference(current_time)
         if self.runmode not in ('hyperopt', "backtest"):
             self.post_trade()
-            self.render_performance(current_time)
 
 
     def print_performance_stat(self, last_row_init, date, informative_metrics):

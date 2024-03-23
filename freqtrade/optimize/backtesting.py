@@ -44,7 +44,8 @@ from freqtrade.strategy.strategy_wrapper import strategy_safe_wrapper
 from freqtrade.types import BacktestResultType, get_BacktestResultType_default
 from freqtrade.util.migrations import migrate_data
 from freqtrade.wallets import Wallets
-
+from freqtrade.exchange import timeframe_to_minutes
+from freqtrade.plugins.perfcheck_renderers import render_graph, return_results
 
 logger = logging.getLogger(__name__)
 
@@ -1354,18 +1355,10 @@ class Backtesting:
             # self.dataprovider.performance_metered_strategy.post_trade()
             blist = self.dataprovider.performance_metered_strategy.balance_list
             if blist.shape[0] > 0:
-                from freqtrade.plugins.perfcheck_renderers import render_graph, return_results
 
-                # benchmark = generate_benchmark(self.dataprovider, results["results"])
-                # df = self.dataprovider.get_pair_dataframe("BTC/USDT:USDT", self.strategy.timeframe)
-                # print(df)
-                # df, _ = self.dataprovider.get_analyzed_dataframe("BTC/USDT:USDT", self.strategy.timeframe)
-                # df = df[["close", "date"]].rename(columns={"close": "price-btc"}).set_index("date")
-                # df = df[df.index >= blist.index[0]]
-                # blist = df.join(blist)
                 blist[["total", "free", "used", "closed_total"]].ffill(inplace=True)
-                print(blist)
-                graph = render_graph(blist, self.dataprovider.performance_metered_strategy.perfcheck_config, self.dataprovider, results["results"])
+                print(blist, "blist")
+                graph = render_graph(blist, self.dataprovider.performance_metered_strategy.perfcheck_config, self.dataprovider, results["results"].copy(), self.strategy.timeframe)
                 return_results(graph)
 
 
