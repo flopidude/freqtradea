@@ -11,9 +11,10 @@ from rich.live import Live
 from rich.panel import Panel
 from rich.prompt import Prompt
 
+from freqtrade.exchange import timeframe_to_minutes
 from freqtrade.persistence import Trade
-from freqtrade.exchange import timeframe_to_minutes
-from freqtrade.exchange import timeframe_to_minutes
+
+
 # multiplier = 15
 def calculate_ratios(account_values: pd.Series, benchmark_returns = None, timeframe="1m"):
     # Calculate dynamic multiplier based on average timedelta of the index
@@ -124,7 +125,22 @@ def render_perfcheck_simple(balance_df: pd.DataFrame, dp, perfconfig, trades: pd
             name='Account Balance (Closed)'
         )
     )
-
+    fig.add_trace(
+        go.Scatter(
+            x=balance_df.index,
+            y=balance_df['locked'],
+            mode='lines',
+            name='Locked Leveraged Margin'
+        )
+    )
+    fig.add_trace(
+        go.Scatter(
+            x=balance_df.index,
+            y=balance_df['used'],
+            mode='lines',
+            name='Locked Unleveraged Margin'
+        )
+    )
     # Add the benchmark line
     fig.add_trace(
         go.Scatter(
@@ -210,7 +226,7 @@ class PerformanceMeteredStrategy():
     curdir = os.path.join(os.getcwd(), "user_data")
     perfcheck_folder = create_folder_if_does_not_exist(os.path.join(curdir, "perfchecks"))
     metric_columns = ['sharpe_ratio', 'calmar_ratio', 'omega_ratio', 'vwr_ratio']
-    balance_list = pd.DataFrame(columns=["date", "total", "used", "free"] + metric_columns)
+    balance_list = pd.DataFrame(columns=["date", "total", "used", "free", "locked", "closed_total"] + metric_columns)
     balance_filez = None
     backtest_filez = None
     live_perfcheck = Layout(name="no perfcheck yet")
@@ -303,8 +319,9 @@ class PerformanceMeteredStrategy():
                 used_usdt = self.wallets.get_used('USDT')
                 usdt_free = self.wallets.get_free('USDT')
                 usdt_total = self.wallets.get_total('USDT')
+                locked = self.calculate_current_overmargin()
                 new_element = pd.DataFrame(
-                    [{'date': date_now, 'total': current_balance, 'free': usdt_free, 'used': used_usdt, 'closed_total': usdt_total} | pair_prices])
+                    [{'date': date_now, 'total': current_balance, 'free': usdt_free, 'used': used_usdt, 'closed_total': usdt_total, "locked": locked} | pair_prices])
 
                 new_element.set_index('date', inplace=True)
                 self.balance_list = self.balance_list.combine_first(new_element)
@@ -325,6 +342,13 @@ class PerformanceMeteredStrategy():
             self.current_profits[feed_pair] = trade.stake_amount * (1 + current_profit)
             self.last_checked_experimental[feed_pair] = date_now
             self.try_repaint(current_time)
+
+    def calculate_current_overmargin(self):
+        margin = 0
+        positions = self.wallets.get_all_positions()
+        for pair, i in positions.items():
+            margin += i.collateral * i.leverage
+        return margin
 
     def try_repaint(self, current_time):
         date_now = pd.to_datetime(current_time).floor(f"{self.perfcheck_config['update_performance_minutes']}min")

@@ -24,7 +24,7 @@ from freqtrade.enums import (BacktestState, CandleType, ExitCheckTuple, ExitType
                              TradingMode)
 from freqtrade.exceptions import DependencyException, OperationalException
 from freqtrade.exchange import (amount_to_contract_precision, price_to_precision,
-                                timeframe_to_seconds)
+                                timeframe_to_minutes, timeframe_to_seconds)
 from freqtrade.exchange.exchange import Exchange
 from freqtrade.mixins import LoggingMixin
 from freqtrade.optimize.backtest_caching import get_strategy_run_id
@@ -37,6 +37,7 @@ from freqtrade.optimize.optimize_reports import (generate_backtest_stats, genera
 from freqtrade.persistence import (CustomDataWrapper, LocalTrade, Order, PairLocks, Trade,
                                    disable_database_use, enable_database_use)
 from freqtrade.plugins.pairlistmanager import PairListManager
+from freqtrade.plugins.perfcheck_renderers import render_graph, return_results
 from freqtrade.plugins.protectionmanager import ProtectionManager
 from freqtrade.resolvers import ExchangeResolver, StrategyResolver
 from freqtrade.strategy.interface import IStrategy
@@ -44,8 +45,7 @@ from freqtrade.strategy.strategy_wrapper import strategy_safe_wrapper
 from freqtrade.types import BacktestResultType, get_BacktestResultType_default
 from freqtrade.util.migrations import migrate_data
 from freqtrade.wallets import Wallets
-from freqtrade.exchange import timeframe_to_minutes
-from freqtrade.plugins.perfcheck_renderers import render_graph, return_results
+
 
 logger = logging.getLogger(__name__)
 
