@@ -3090,9 +3090,14 @@ class Exchange:
 
             pair_tiers = self._leverage_tiers[pair]
 
-            for tier in reversed(pair_tiers):
+            for ir, tier in enumerate(reversed(pair_tiers)):
                 if nominal_value >= tier['minNotional']:
                     return (tier['maintenanceMarginRate'], tier['maintAmt'])
+                # TODO: completely retarded
+                elif ir == len(pair_tiers) - 1:
+                    return (tier['maintenanceMarginRate'], tier['maintAmt'])
+
+
 
             raise ExchangeError("nominal value can not be lower than 0")
             # The lowest notional_floor for any pair in fetch_leverage_tiers is always 0 because it
