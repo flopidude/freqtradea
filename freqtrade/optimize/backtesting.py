@@ -1358,7 +1358,8 @@ class Backtesting:
 
                 blist[["total", "free", "used", "closed_total"]].ffill(inplace=True)
                 print(blist, "blist")
-                graph = render_graph(blist, self.dataprovider.performance_metered_strategy.perfcheck_config, self.dataprovider, results["results"].copy(), self.strategy.timeframe)
+                perfcheck_timeframe = self.dataprovider.performance_metered_strategy.perfcheck_config['update_performance_minutes']
+                graph = render_graph(blist, self.dataprovider.performance_metered_strategy.perfcheck_config, self.dataprovider, results["results"].copy(), self.strategy.timeframe, f"{perfcheck_timeframe}m")
                 return_results(graph)
 
 

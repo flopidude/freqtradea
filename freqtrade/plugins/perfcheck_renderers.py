@@ -15,16 +15,16 @@ from freqtrade.exchange import timeframe_to_minutes
 from freqtrade.persistence import Trade
 
 
-# multiplier = 15
-def calculate_ratios(account_values: pd.Series, benchmark_returns = None, timeframe="1m"):
+multiplier = 15
+def calculate_ratios(account_values: pd.Series, benchmark_returns = None, timeframe: [str, None] =None):
     # Calculate dynamic multiplier based on average timedelta of the index
-    multiplier = timeframe_to_minutes(timeframe)
-    print("Timeframe multiplier", multiplier)
+    timeframe_multiplier = timeframe_to_minutes(timeframe) if timeframe is not None else multiplier
+    print("Timeframe multiplier", timeframe_multiplier)
     sharpe_ratio = None
     calmar_ratio = None
     m2_ratio = None
     try:
-        multmax = 365 * 24 * (60 / multiplier)
+        multmax = 365 * 24 * (60 / timeframe_multiplier)
         account_series = account_values
         returns = account_series.pct_change().dropna()
         risk_free = 0
@@ -90,20 +90,25 @@ def generate_profit_single_pair(dp, pair, first_date, initial_investment=10000, 
     print(pair_df)
     return pair_df
 
-def render_perfcheck_simple(balance_df: pd.DataFrame, dp, perfconfig, trades: pd.DataFrame=None, initial_investment=None, timeframe="1m"):
+def render_perfcheck_simple(balance_df: pd.DataFrame, dp, perfconfig, trades: pd.DataFrame=None, initial_investment=None, timeframe="1m", perfcheck_timeframe="15m"):
     initial_investment = next(item for item in [initial_investment, balance_df['closed_total'].bfill().iloc[0], 10000] if item is not None)
     # Generate benchmark using the dataprovider and the initial investment
+    errors = {}
     first_date = balance_df.index[0]
-    if trades is None or trades.shape[0] == 0:
-        benchmark_df = generate_profit_single_pair(dp, "BTC/USDT:USDT", first_date, initial_investment, timeframe)
-    else:
-        try:
-            benchmark_df = generate_benchmark(dp, trades, first_date, initial_investment, timeframe)
-        except Exception as e:
+    benchmark_df = None
+    try:
+        if trades is None or trades.shape[0] == 0:
             benchmark_df = generate_profit_single_pair(dp, "BTC/USDT:USDT", first_date, initial_investment, timeframe)
-            print("Error generating benchmark:", e)
+        else:
+            try:
+                benchmark_df = generate_benchmark(dp, trades, first_date, initial_investment, timeframe)
+            except Exception as e:
+                benchmark_df = generate_profit_single_pair(dp, "BTC/USDT:USDT", first_date, initial_investment, timeframe)
+                print("Error generating benchmark:", e)
+    except Exception as e:
+        errors["benchmark"] = e
 
-    print(benchmark_df)
+    has_benchmark = "benchmark" not in errors and benchmark_df is not None and benchmark_df.shape[0] > 0
 
     fig = make_subplots(rows=1, cols=2)
 
@@ -141,64 +146,60 @@ def render_perfcheck_simple(balance_df: pd.DataFrame, dp, perfconfig, trades: pd
             name='Locked Unleveraged Margin'
         )
     )
-    # Add the benchmark line
-    fig.add_trace(
-        go.Scatter(
-            x=benchmark_df.index,
-            y=benchmark_df['benchmark'],
-            mode='lines',
-            name='Benchmark'
-        )
-    )
-
-    # Add performance metrics to the second column of the fig
-    ratios = calculate_ratios(balance_df['total'], benchmark_df['benchmark'], timeframe)
-    ratio_names = list(ratios.keys())
-    ratio_values = list(ratios.values())
+    ratios = calculate_ratios(balance_df['total'], benchmark_df['benchmark'] if has_benchmark else None, perfcheck_timeframe)
 
     # Add a bar chart with the performance ratios
     fig.add_trace(
         go.Bar(
-            x=ratio_values,
-            y=ratio_names,
+            x=list(ratios.values()),
+            y=list(ratios.keys()),
             orientation='h',
             name='Performance Ratios'
         ),
         row=1, col=2
     )
+    # Add the benchmark line
+    if has_benchmark:
+        fig.add_trace(
+            go.Scatter(
+                x=benchmark_df.index,
+                y=benchmark_df['benchmark'],
+                mode='lines',
+                name='Benchmark'
+            )
+        )
 
-    ratios_benchmark = calculate_ratios(benchmark_df['benchmark'], balance_df['total'], timeframe)
-    ratio_names_benchmark = list(ratios_benchmark.keys())
-    ratio_values_benchmark = list(ratios_benchmark.values())
-    # Add a bar chart with the performance ratios for the benchmark to the second column of the fig
-    fig.add_trace(
-        go.Bar(
-            x=ratio_values_benchmark,
-            y=ratio_names_benchmark,
-            orientation='h',
-            name='Benchmark Ratios'
-        ),
-        row=1, col=2
-    )
+        # Add performance metrics to the second column of the fig
+        ratios_benchmark = calculate_ratios(benchmark_df['benchmark'], balance_df['total'], timeframe)
+        # Add a bar chart with the performance ratios for the benchmark to the second column of the fig
+        fig.add_trace(
+            go.Bar(
+                x=list(ratios_benchmark.values()),
+                y=list(ratios_benchmark.keys()),
+                orientation='h',
+                name='Benchmark Ratios'
+            ),
+            row=1, col=2
+        )
 
-        # Update layout for the second column
+    # Update layout for the second column
     fig.update_yaxes(title_text='Ratios', row=1, col=2)
     fig.update_xaxes(title_text='Values', row=1, col=2)
     # Update layout to add titles and axis labels
     fig.update_layout(
-        title='Account Balance and Benchmark Comparison',
+        title='Account Balance Graph',
         xaxis_title='Date',
         yaxis_title='Value'
     )
 
-    return fig
+    return fig, errors
 
 
 
 
-def render_graph(dataframe, perfconfig, dp, trades, timeframe="1m"):
+def render_graph(dataframe, perfconfig, dp, trades, timeframe="1m", perfcheck_timeframe="15m"):
     print(dataframe, "GRAPHDATA")
-    fig = render_perfcheck_simple(dataframe, dp, perfconfig, trades, timeframe=timeframe)
+    fig, response = render_perfcheck_simple(dataframe, dp, perfconfig, trades, timeframe=timeframe, perfcheck_timeframe=perfcheck_timeframe)
     return fig
 
 
@@ -250,10 +251,8 @@ class PerformanceMeteredStrategy():
             self.perfcheck_config["name"] += f"_{self.perfcheck_config['arbitrage-id']}"
             self.arbitrage_sum = self.perfcheck_config["arbitrage-sum"]
             self.arbitrage_id = self.perfcheck_config["arbitrage-id"]
-        elif self.runmode in ("backtest"):
-            prepend = Prompt.ask("Name of config to prepend?").strip()
-            if len(prepend) > 0:
-                self.perfcheck_config["name"] = prepend + self.perfcheck_config["name"]
+        if not "update_performance_minutes" in self.perfcheck_config:
+            self.perfcheck_config["update_performance_minutes"] = 15
         multiplier = self.perfcheck_config['update_performance_minutes']
 
         # if "ask_name" not in self.perfcheck_config or not self.perfcheck_config["ask_name"]:
@@ -325,8 +324,8 @@ class PerformanceMeteredStrategy():
 
                 new_element.set_index('date', inplace=True)
                 self.balance_list = self.balance_list.combine_first(new_element)
-            else:
-                print("error - last balance is none", current_time)
+            # else:
+            #     print("error - last balance is none", current_time)
         else:
             print("Error - current time is none", current_time)
 
