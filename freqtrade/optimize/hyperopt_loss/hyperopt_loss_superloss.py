@@ -31,6 +31,7 @@ class Supreme(IHyperOptLoss):
         Uses Calmar Ratio calculation.
         """
         performance_minutes = config['perfcheck_config'].get('update_performance_minutes', 15)
+        maximal_deliminator = 1 / (results["locked"].max() / results["total"].iloc[-1])
         print(performance_minutes, "minutes per interval")
         try: # Should have at least three hours worth of changing balance, not too much to ask for
             ratios = calculate_ratios(results["total"], timeframe=f"{performance_minutes}m")
@@ -40,5 +41,5 @@ class Supreme(IHyperOptLoss):
         optimal_trades = 250
         optimal_data_points = 36
         multiplier = min(min(trade_count / optimal_trades, results.shape[0] / optimal_data_points), 1) ** 10
-        rating = ratios["sharpe_ratio"] * multiplier * max(ratios["calmar_ratio"], 0)
+        rating = ratios["sharpe_ratio"] * multiplier * max(ratios["calmar_ratio"], 0) * maximal_deliminator
         return -rating
