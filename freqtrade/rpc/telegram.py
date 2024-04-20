@@ -557,7 +557,7 @@ class Telegram(RPCHandler):
         elif msg['type'] == RPCMessageType.WARNING:
             message = f"\N{WARNING SIGN} *Warning:* `{msg['status']}`"
         elif msg['type'] == RPCMessageType.EXCEPTION:
-            # Errors will contain exceptions, which are wrapped in tripple ticks.
+            # Errors will contain exceptions, which are wrapped in triple ticks.
             message = f"\N{WARNING SIGN} *ERROR:* \n {msg['status']}"
 
         elif msg['type'] == RPCMessageType.STARTUP:
@@ -1265,7 +1265,7 @@ class Telegram(RPCHandler):
                 text='Cancel', callback_data='force_exit__cancel')])
             await self._send_msg(msg="Which trade?", keyboard=buttons_aligned)
 
-    async def _force_exit_action(self, trade_id):
+    async def _force_exit_action(self, trade_id: str):
         if trade_id != 'cancel':
             try:
                 loop = asyncio.get_running_loop()
@@ -1691,7 +1691,7 @@ class Telegram(RPCHandler):
 
     async def send_blacklist_msg(self, blacklist: Dict):
         errmsgs = []
-        for pair, error in blacklist['errors'].items():
+        for _, error in blacklist['errors'].items():
             errmsgs.append(f"Error: {error['error_msg']}")
         if errmsgs:
             await self._send_msg('\n'.join(errmsgs))

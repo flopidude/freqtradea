@@ -23,12 +23,13 @@ from freqtrade.enums import CandleType, RunMode, State, TradingMode
 from freqtrade.exceptions import DependencyException, ExchangeError, OperationalException
 from freqtrade.loggers import setup_logging, setup_logging_pre
 from freqtrade.optimize.backtesting import Backtesting
-from freqtrade.persistence import PairLocks, Trade
+from freqtrade.persistence import Trade
 from freqtrade.rpc import RPC
 from freqtrade.rpc.api_server import ApiServer
 from freqtrade.rpc.api_server.api_auth import create_token, get_user_from_token
 from freqtrade.rpc.api_server.uvicorn_threaded import UvicornServer
 from freqtrade.rpc.api_server.webserver_bgwork import ApiBG
+from freqtrade.util.datetime_helpers import format_date
 from tests.conftest import (CURRENT_TEST_STRATEGY, EXMS, create_mock_trades, get_mock_coro,
                             get_patched_freqtradebot, log_has, log_has_re, patch_get_signal)
 
@@ -71,8 +72,10 @@ def botclient(default_conf, mocker):
         ApiServer.shutdown()
 
 
-def client_post(client: TestClient, url, data={}):
+def client_post(client: TestClient, url, data=None):
 
+    if data is None:
+        data = {}
     return client.post(url,
                        json=data,
                        headers={'Authorization': _basic_auth_str(_TEST_USER, _TEST_PASS),
@@ -81,8 +84,10 @@ def client_post(client: TestClient, url, data={}):
                                 })
 
 
-def client_patch(client: TestClient, url, data={}):
+def client_patch(client: TestClient, url, data=None):
 
+    if data is None:
+        data = {}
     return client.patch(url,
                         json=data,
                         headers={'Authorization': _basic_auth_str(_TEST_USER, _TEST_PASS),
@@ -553,8 +558,19 @@ def test_api_locks(botclient):
     assert rc.json()['lock_count'] == 0
     assert rc.json()['lock_count'] == len(rc.json()['locks'])
 
-    PairLocks.lock_pair('ETH/BTC', datetime.now(timezone.utc) + timedelta(minutes=4), 'randreason')
-    PairLocks.lock_pair('XRP/BTC', datetime.now(timezone.utc) + timedelta(minutes=20), 'deadbeef')
+    rc = client_post(client, f"{BASE_URI}/locks", [
+        {
+            "pair": "ETH/BTC",
+            "until": f"{format_date(datetime.now(timezone.utc) + timedelta(minutes=4))}Z",
+            "reason": "randreason"
+        }, {
+            "pair": "XRP/BTC",
+            "until": f"{format_date(datetime.now(timezone.utc) + timedelta(minutes=20))}Z",
+            "reason": "deadbeef"
+        }
+    ])
+    assert_response(rc)
+    assert rc.json()['lock_count'] == 2
 
     rc = client_get(client, f"{BASE_URI}/locks")
     assert_response(rc)
@@ -1607,7 +1623,7 @@ def test_api_pair_history(botclient, mocker):
     assert 'data' in result
     data = result['data']
     assert len(data) == 289
-    # analyed DF has 30 columns
+    # analyzed DF has 30 columns
     assert len(result['columns']) == 30
     assert len(data[0]) == 30
     date_col_idx = [idx for idx, c in enumerate(result['columns']) if c == 'date'][0]
@@ -2235,6 +2251,42 @@ def test_api_patch_backtest_history_entry(botclient, tmp_path: Path):
     fileres = read_metadata()
     assert fileres[CURRENT_TEST_STRATEGY]['run_id'] == res[0]['run_id']
     assert fileres[CURRENT_TEST_STRATEGY]['notes'] == 'FooBar'
+
+
+def test_api_patch_backtest_market_change(botclient, tmp_path: Path):
+    ftbot, client = botclient
+
+    # Create a temporary directory and file
+    bt_results_base = tmp_path / "backtest_results"
+    bt_results_base.mkdir()
+    file_path = bt_results_base / "test_22_market_change.feather"
+    df = pd.DataFrame({
+        'date': ['2018-01-01T00:00:00Z', '2018-01-01T00:05:00Z'],
+        'count': [2, 4],
+        'mean': [2555, 2556],
+        'rel_mean': [0, 0.022],
+    })
+    df['date'] = pd.to_datetime(df['date'])
+    df.to_feather(file_path, compression_level=9, compression='lz4')
+    # Nonexisting file
+    rc = client_get(client, f"{BASE_URI}/backtest/history/randomFile.json/market_change")
+    assert_response(rc, 503)
+
+    ftbot.config['user_data_dir'] = tmp_path
+    ftbot.config['runmode'] = RunMode.WEBSERVER
+
+    rc = client_get(client, f"{BASE_URI}/backtest/history/randomFile.json/market_change")
+    assert_response(rc, 404)
+
+    rc = client_get(client, f"{BASE_URI}/backtest/history/test_22/market_change")
+    assert_response(rc, 200)
+    result = rc.json()
+    assert result['length'] == 2
+    assert result['columns'] == ['date', 'count', 'mean', 'rel_mean', '__date_ts']
+    assert result['data'] == [
+        ['2018-01-01T00:00:00Z', 2, 2555, 0.0, 1514764800000],
+        ['2018-01-01T00:05:00Z', 4, 2556, 0.022, 1514765100000]
+    ]
 
 
 def test_health(botclient):

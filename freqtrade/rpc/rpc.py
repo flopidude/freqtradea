@@ -156,7 +156,7 @@ class RPC:
         }
         return val
 
-    def _rpc_trade_status(self, trade_ids: List[int] = []) -> List[Dict[str, Any]]:
+    def _rpc_trade_status(self, trade_ids: Optional[List[int]] = None) -> List[Dict[str, Any]]:
         """
         Below follows the RPC backend it is prefixed with rpc_ to raise awareness that it is
         a remotely exposed function
@@ -302,7 +302,7 @@ class RPC:
                     for oo in trade.open_orders
                 ]
 
-                # exemple: '*.**.**' trying to enter, exit and exit with 3 different orders
+                # example: '*.**.**' trying to enter, exit and exit with 3 different orders
                 active_attempt_side_symbols_str = '.'.join(active_attempt_side_symbols)
 
                 detail_trade = [
@@ -461,8 +461,11 @@ class RPC:
 
     def _rpc_trade_statistics(
             self, stake_currency: str, fiat_display_currency: str,
-            start_date: datetime = datetime.fromtimestamp(0)) -> Dict[str, Any]:
+            start_date: Optional[datetime] = None) -> Dict[str, Any]:
         """ Returns cumulative profit statistics """
+
+        start_date = datetime.fromtimestamp(0) if start_date is None else start_date
+
         trade_filter = ((Trade.is_open.is_(False) & (Trade.close_date >= start_date)) |
                         Trade.is_open.is_(True))
         trades: Sequence[Trade] = Trade.session.scalars(Trade.get_trades_query(
@@ -1113,6 +1116,16 @@ class RPC:
         Trade.commit()
 
         return self._rpc_locks()
+
+    def _rpc_add_lock(
+            self, pair: str, until: datetime, reason: Optional[str], side: str) -> PairLock:
+        lock = PairLocks.lock_pair(
+            pair=pair,
+            until=until,
+            reason=reason,
+            side=side,
+        )
+        return lock
 
     def _rpc_whitelist(self) -> Dict:
         """ Returns the currently active whitelist"""
