@@ -123,3 +123,9 @@ target/
 !config_examples/config_kraken.example.json
 !config_examples/config_freqai.example.json
 my_data/
+
+NostalgiaForInfinityImport/
+
+copy-trading-pairs.ipynb
+
+data/
