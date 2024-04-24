@@ -1213,23 +1213,23 @@ class Telegram(RPCHandler):
         command_name = update.message.text.split(" ")[0].split("/")[1].strip()
         logger.info(f'Invoking {command_name}')
         # print(command_name)
-        try:
-            command_function = getattr(self._rpc._freqtrade.strategy, command_name)
-            # print(command_function)
-            result = command_function(context.args)
-            message = result["output"]
-            is_table = result["table"]
-            # print(result)
-            if is_table:
-                # await self._send_msg(message, parse_mode=ParseMode.HTML)
-                print("sending", message)
-                message = f"<pre>{message}</pre>"
-                await self._send_msg(message, parse_mode=ParseMode.HTML)
-            else:
-                await self._send_msg(message)
-        except Exception as e:
-            logger.error(e)
-            await self._send_msg(f"Function not found")
+        # try:
+        command_function = getattr(self._rpc._freqtrade.strategy, command_name)
+        # print(command_function)
+        result = await command_function(context.args)
+        message = result["output"]
+        is_table = result["table"]
+        # print(result)
+        if is_table:
+            # await self._send_msg(message, parse_mode=ParseMode.HTML)
+            print("sending", message)
+            message = f"<pre>{message}</pre>"
+            await self._send_msg(message, parse_mode=ParseMode.HTML)
+        else:
+            await self._send_msg(message)
+        # except Exception as e:
+        #     logger.error(e)
+        #     await self._send_msg(f"Function not found")
 
     @authorized_only
     async def _force_exit(self, update: Update, context: CallbackContext) -> None:
