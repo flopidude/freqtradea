@@ -90,7 +90,7 @@ def generate_profit_single_pair(dp, pair, first_date, initial_investment=10000, 
     print(pair_df)
     return pair_df
 
-def render_perfcheck_simple(balance_df: pd.DataFrame, dp, perfconfig, trades: pd.DataFrame=None, initial_investment=None, timeframe="1m", perfcheck_timeframe="15m"):
+def render_perfcheck_simple(balance_df: pd.DataFrame, dp, perfconfig, trades: pd.DataFrame=None, initial_investment=None, timeframe="1m", perfcheck_timeframe="15m", show_locked = False):
     initial_investment = next(item for item in [initial_investment, balance_df['closed_total'].bfill().iloc[0], 10000] if item is not None)
     # Generate benchmark using the dataprovider and the initial investment
     errors = {}
@@ -130,22 +130,23 @@ def render_perfcheck_simple(balance_df: pd.DataFrame, dp, perfconfig, trades: pd
             name='Account Balance (Closed)'
         )
     )
-    fig.add_trace(
-        go.Scatter(
-            x=balance_df.index,
-            y=balance_df['locked'],
-            mode='lines',
-            name='Locked Leveraged Margin'
+    if show_locked:
+        fig.add_trace(
+            go.Scatter(
+                x=balance_df.index,
+                y=balance_df['locked'],
+                mode='lines',
+                name='Locked Leveraged Margin'
+            )
         )
-    )
-    fig.add_trace(
-        go.Scatter(
-            x=balance_df.index,
-            y=balance_df['used'],
-            mode='lines',
-            name='Locked Unleveraged Margin'
+        fig.add_trace(
+            go.Scatter(
+                x=balance_df.index,
+                y=balance_df['used'],
+                mode='lines',
+                name='Locked Unleveraged Margin'
+            )
         )
-    )
     ratios = calculate_ratios(balance_df['total'], benchmark_df['benchmark'] if has_benchmark else None, perfcheck_timeframe)
 
     # Add a bar chart with the performance ratios
