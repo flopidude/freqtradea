@@ -18,6 +18,7 @@ from sqlalchemy import func, select
 from freqtrade import __version__
 from freqtrade.configuration.timerange import TimeRange
 from freqtrade.constants import CANCEL_REASON, DEFAULT_DATAFRAME_COLUMNS, Config
+from freqtrade.data.btanalysis import trade_list_to_dataframe
 from freqtrade.data.history import load_data
 from freqtrade.data.metrics import DrawDownResult, calculate_expectancy, calculate_max_drawdown
 from freqtrade.enums import (
