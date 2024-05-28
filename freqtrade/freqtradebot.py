@@ -2007,6 +2007,8 @@ class FreqtradeBot(LoggingMixin):
 
         amount = self._safe_exit_amount(trade, trade.pair, sub_trade_amt or trade.amount)
         time_in_force = self.strategy.order_time_in_force["exit"]
+        if self.dataprovider.perfcheck_config:
+            self.dataprovider.performance_metered_strategy.confirm_trade_exit_callback(trade.pair, trade, limit, datetime.now(timezone.utc), self.wallets)
 
         if (
             exit_check.exit_type != ExitType.LIQUIDATION
