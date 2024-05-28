@@ -76,7 +76,8 @@ class TestCCXTExchange:
                 assert isinstance(po["timestamp"], int)
                 assert isinstance(po["price"], float)
                 assert po["price"] == 15.5
-                if po["average"] is not None:
+                if po["status"] == "closed":
+                    # Filled orders should have average assigned.
                     assert isinstance(po["average"], float)
                     assert po["average"] == 15.5
                 assert po["symbol"] == pair
@@ -115,6 +116,9 @@ class TestCCXTExchange:
 
     def test_ccxt_fetch_tickers(self, exchange: EXCHANGE_FIXTURE_TYPE):
         exch, exchangename = exchange
+        if exchangename in ("bitmart"):
+            # TODO: Remove once https://github.com/ccxt/ccxt/issues/22631 is fixed.
+            pytest.skip("Bitmart is unstable here at the moment")
         pair = EXCHANGES[exchangename]["pair"]
 
         tickers = exch.get_tickers()
