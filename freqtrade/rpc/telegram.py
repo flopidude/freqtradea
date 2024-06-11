@@ -258,7 +258,9 @@ class Telegram(RPCHandler):
             r"/version$",
             r"/marketdir (long|short|even|none)$",
             r"/marketdir$",
-        ]
+            r"/livegraph$",
+            r"/graph$"
+        ] + [rf"/{i}$" for i in self._config['telegram'].get("custom_commands", [])]
         # Create keys for generation
         valid_keys_print = [k.replace("$", "") for k in valid_keys]
 
@@ -365,6 +367,7 @@ class Telegram(RPCHandler):
             ),
             CallbackQueryHandler(self._mix_tag_performance, pattern="update_mix_tag_performance"),
             CallbackQueryHandler(self._count, pattern="update_count"),
+            CallbackQueryHandler(self._custom_function_callback_handler, pattern=r"custom_handler__\S+"),
             CallbackQueryHandler(self._force_exit_inline, pattern=r"force_exit__\S+"),
             CallbackQueryHandler(self._force_enter_inline, pattern=r"force_enter__\S+"),
         ]
@@ -1318,19 +1321,29 @@ class Telegram(RPCHandler):
         command_function = getattr(self._rpc._freqtrade.strategy, command_name)
         # print(command_function)
         result = await command_function(context.args)
-        message = result["output"]
-        is_table = result["table"]
-        # print(result)
-        if is_table:
-            # await self._send_msg(message, parse_mode=ParseMode.HTML)
-            print("sending", message)
-            message = f"<pre>{message}</pre>"
-            await self._send_msg(message, parse_mode=ParseMode.HTML)
-        else:
-            await self._send_msg(message)
-        # except Exception as e:
-        #     logger.error(e)
-        #     await self._send_msg(f"Function not found")
+        for message in result:
+            await self._send_msg(**message) # unpacks dict into arguments for the function
+        # message = result["output"]
+        # is_table = result["table"]
+        # # print(result)
+        # if is_table:
+        #     # await self._send_msg(message, parse_mode=ParseMode.HTML)
+        #     print("sending", message)
+        #     message = f"<pre>{message}</pre>"
+        #     await self._send_msg(message, parse_mode=ParseMode.HTML)
+        # else:
+        #     await self._send_msg(message)
+
+    async def _custom_function_callback_handler(self, update: Update, context) -> None:
+        if update.callback_query:
+            query = update.callback_query
+            if query.data and "__" in query.data:
+                # custom_handler__functionparam(@&)cmdname
+                payload = query.data.split("__")[1]
+                cmdname = payload.split("(@&)")[1]
+                command_function = getattr(self._rpc._freqtrade.strategy, cmdname)
+                result = await command_function(context.args)
+                await self._send_msg(**result)
 
     @authorized_only
     async def _force_exit(self, update: Update, context: CallbackContext) -> None:

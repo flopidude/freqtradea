@@ -30,7 +30,7 @@ def calculate_ratios(account_values: pd.Series, benchmark_returns = None, timefr
         risk_free = 0
         max_drawdown = (account_series / account_series.cummax()).min() - 1
 
-        log_returns = np.log1p(returns)
+        log_returns = np.log1p(returns.astype(float))
         log_mean_return = log_returns.mean() * multmax
         log_std_return = log_returns.std() * np.sqrt(multmax)
         sharpe_ratio = log_mean_return / log_std_return
