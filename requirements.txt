@@ -63,3 +63,16 @@ janus==1.0.0
 
 ast-comments==1.2.2
 packaging==24.1
+polars
+httpx
+pytz
+tqdm
+pandas
+dash
+dash-mantine-components
+dash-iconify
+flask
+flask_restful
+plotly
+kaleido
+historical_binance
