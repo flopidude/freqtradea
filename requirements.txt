@@ -76,3 +76,4 @@ flask_restful
 plotly
 kaleido
 historical_binance
+utils
