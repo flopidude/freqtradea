@@ -394,12 +394,12 @@ class PerformanceMeteredStrategy():
             return None
 
     def confirm_trade_exit_callback(self, pair, trade, rate, current_time, wallets):
-        profit = self.current_profits[pair] / trade.stake_amount - 1
-        print(f"Exiting at {profit:.3f} profit on {pair}, {self.wins}/{self.losses}, {trade.is_short}")
-        if profit > 0:
-            self.wins += 1
-        else:
-            self.losses += 1
+        # profit = self.current_profits[pair] / trade.stake_amount - 1
+        # print(f"Exiting at {profit:.3f} profit on {pair}, {self.wins}/{self.losses}, {trade.is_short}")
+        # if profit > 0:
+        #     self.wins += 1
+        # else:
+        #     self.losses += 1
         self.wallets = wallets
         if self.perfcheck_config["default_exit_callback"] is None:
             self.perfcheck_config["default_exit_callback"] = False
