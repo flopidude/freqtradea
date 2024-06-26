@@ -25,7 +25,7 @@ from freqtrade.exceptions import ExchangeError, OperationalException
 from freqtrade.exchange import Exchange, timeframe_to_prev_date, timeframe_to_seconds
 from freqtrade.exchange.types import OrderBook
 from freqtrade.misc import append_candles_to_dataframe
-from freqtrade.plugins.perfcheck_renderers import PerformanceMeteredStrategy
+from freqtrade.plugins.perfcheck_renderers import PerformanceMeter
 from freqtrade.rpc import RPCManager
 from freqtrade.rpc.rpc_types import RPCAnalyzedDFMsg
 from freqtrade.util import PeriodicCache
@@ -76,7 +76,7 @@ class DataProvider:
         if self.perfcheck_config:
             perfcheck_name = self.perfcheck_config.get("graph_name", self._config.get("bot_name"))
             logger.info(f'Starting performance check for {perfcheck_name}')
-            self.performance_metered_strategy = PerformanceMeteredStrategy(self.perfcheck_config,
+            self.performance_metered_strategy = PerformanceMeter(self.perfcheck_config,
                                                                            perfcheck_name,
                                                                            self._config['runmode'].value, self._config.get("timeframe", "1m"))
 

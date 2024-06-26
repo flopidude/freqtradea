@@ -333,10 +333,6 @@ class FreqtradeBot(LoggingMixin):
 
         strategy_safe_wrapper(self.strategy.bot_loop_start, supress_error=True)(
             current_time=datetime.now(timezone.utc))
-        if (self.dataprovider.perfcheck_config and
-                self.dataprovider.performance_metered_strategy.balance_list.shape[0] == 0):
-            self.dataprovider.performance_metered_strategy.bot_loop_start_callback(datetime.now(timezone.utc),
-                                                                                   self.wallets)
 
         with self._measure_execution:
             self.strategy.analyze(self.active_pair_whitelist)
@@ -2030,8 +2026,6 @@ class FreqtradeBot(LoggingMixin):
 
         amount = self._safe_exit_amount(trade, trade.pair, sub_trade_amt or trade.amount)
         time_in_force = self.strategy.order_time_in_force["exit"]
-        if self.dataprovider.perfcheck_config:
-            self.dataprovider.performance_metered_strategy.confirm_trade_exit_callback(trade.pair, trade, limit, datetime.now(timezone.utc), self.wallets)
 
         if (
             exit_check.exit_type != ExitType.LIQUIDATION
@@ -2271,6 +2265,8 @@ class FreqtradeBot(LoggingMixin):
 
     def _update_trade_after_fill(self, trade: Trade, order: Order, send_msg: bool) -> Trade:
         if order.status in constants.NON_OPEN_EXCHANGE_STATES:
+            if self.dataprovider.perfcheck_config:
+                self.dataprovider.performance_metered_strategy.iteration_at_order_filled(trade)
             strategy_safe_wrapper(self.strategy.order_filled, default_retval=None)(
                 pair=trade.pair, trade=trade, order=order, current_time=datetime.now(timezone.utc)
             )

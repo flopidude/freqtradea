@@ -1,6 +1,9 @@
+import logging
 import os
 import time
 from datetime import datetime, timedelta
+from functools import lru_cache
+from typing import Sequence
 
 import numpy as np
 import pandas as pd
@@ -14,9 +17,12 @@ from rich.prompt import Prompt
 from freqtrade.exchange import timeframe_to_minutes
 from freqtrade.persistence import Trade
 
+logger = logging.getLogger(__name__)
 
 multiplier = 15
-def calculate_ratios(account_values: pd.Series, benchmark_returns = None, timeframe: [str, None] =None):
+
+
+def calculate_ratios(account_values: pd.Series, benchmark_returns=None, timeframe: [str, None] = None):
     # Calculate dynamic multiplier based on average timedelta of the index
     timeframe_multiplier = timeframe_to_minutes(timeframe) if timeframe is not None else multiplier
     print("Timeframe multiplier", timeframe_multiplier)
@@ -50,8 +56,10 @@ def calculate_ratios(account_values: pd.Series, benchmark_returns = None, timefr
             f'm2_ratio': m2_ratio
         }
 
+
 def generate_benchmark(dp, trades, first_date, initial_investment=10000, timeframe="1m"):
-    pair_trade_counts = trades.groupby('pair')['is_short'].apply(lambda x: (x == False).sum() - (x == True).sum()).to_dict()
+    pair_trade_counts = trades.groupby('pair')['is_short'].apply(
+        lambda x: (x == False).sum() - (x == True).sum()).to_dict()
     total_trade_count = sum(abs(count) for count in pair_trade_counts.values())
     pair_trade_percentages = {pair: (count / total_trade_count) for pair, count in pair_trade_counts.items()}
     # print(pair_trade_counts, pair_trade_percentages)
@@ -64,13 +72,15 @@ def generate_benchmark(dp, trades, first_date, initial_investment=10000, timefra
         print(pair_df)
         allocated_balance = initial_investment * abs(percentage)  # Assuming initial_balance is available in dp
         pair_df['allocated_balance'] = allocated_balance
-        change_series = pair_df['close'] / pair_df['close'].iloc[0] if percentage > 0 else pair_df['close'].iloc[0] / pair_df['close']
+        change_series = pair_df['close'] / pair_df['close'].iloc[0] if percentage > 0 else pair_df['close'].iloc[0] / \
+                                                                                           pair_df['close']
         pair_short = pair.split('/')[0]
         pair_df[f'total_value_{pair_short}'] = pair_df['allocated_balance'] * change_series
 
         pair_df.set_index('date', inplace=True)
         pair_df = pair_df[[f'total_value_{pair_short}']]
-        print(f"Profit for {pair_short} is {pair_df[f'total_value_{pair_short}'].iloc[-1]}, initial investment is {pair_df[f'total_value_{pair_short}'].iloc[0]}")
+        print(
+            f"Profit for {pair_short} is {pair_df[f'total_value_{pair_short}'].iloc[-1]}, initial investment is {pair_df[f'total_value_{pair_short}'].iloc[0]}")
         balance_by_date = balance_by_date.combine_first(pair_df)
 
     balance_by_date = balance_by_date.ffill().bfill()
@@ -79,6 +89,7 @@ def generate_benchmark(dp, trades, first_date, initial_investment=10000, timefra
 
     balance_by_date["benchmark"] = (balance_by_date.sum(axis=1))
     return balance_by_date
+
 
 def generate_profit_single_pair(dp, pair, first_date, initial_investment=10000, timeframe="1m"):
     pair_df = dp.historic_ohlcv(pair, timeframe)
@@ -90,8 +101,11 @@ def generate_profit_single_pair(dp, pair, first_date, initial_investment=10000, 
     print(pair_df)
     return pair_df
 
-def render_perfcheck_simple(balance_df: pd.DataFrame, dp, perfconfig, trades: pd.DataFrame=None, initial_investment=None, timeframe="1m", perfcheck_timeframe="15m", show_locked = False):
-    initial_investment = next(item for item in [initial_investment, balance_df['closed_total'].bfill().iloc[0], 10000] if item is not None)
+
+def render_perfcheck_simple(balance_df: pd.DataFrame, dp, perfconfig, trades: pd.DataFrame = None,
+                            initial_investment=None, timeframe="1m", perfcheck_timeframe="15m", show_locked=False):
+    initial_investment = next(
+        item for item in [initial_investment, balance_df['closed_total'].bfill().iloc[0], 10000] if item is not None)
     # Generate benchmark using the dataprovider and the initial investment
     errors = {}
     first_date = balance_df.index[0]
@@ -103,7 +117,8 @@ def render_perfcheck_simple(balance_df: pd.DataFrame, dp, perfconfig, trades: pd
             try:
                 benchmark_df = generate_benchmark(dp, trades, first_date, initial_investment, timeframe)
             except Exception as e:
-                benchmark_df = generate_profit_single_pair(dp, "BTC/USDT:USDT", first_date, initial_investment, timeframe)
+                benchmark_df = generate_profit_single_pair(dp, "BTC/USDT:USDT", first_date, initial_investment,
+                                                           timeframe)
                 print("Error generating benchmark:", e)
     except Exception as e:
         errors["benchmark"] = e
@@ -147,7 +162,8 @@ def render_perfcheck_simple(balance_df: pd.DataFrame, dp, perfconfig, trades: pd
                 name='Locked Unleveraged Margin'
             )
         )
-    ratios = calculate_ratios(balance_df['total'], benchmark_df['benchmark'] if has_benchmark else None, perfcheck_timeframe)
+    ratios = calculate_ratios(balance_df['total'], benchmark_df['benchmark'] if has_benchmark else None,
+                              perfcheck_timeframe)
 
     # Add a bar chart with the performance ratios
     fig.add_trace(
@@ -196,11 +212,10 @@ def render_perfcheck_simple(balance_df: pd.DataFrame, dp, perfconfig, trades: pd
     return fig, errors
 
 
-
-
-def render_graph(dataframe, perfconfig, dp, trades, timeframe="1m", perfcheck_timeframe="15m"):
+def render_graph(dataframe, perfconfig, dp, trades, timeframe="1m", perfcheck_timeframe="15m", render_extras=False):
     print(dataframe, "GRAPHDATA")
-    fig, response = render_perfcheck_simple(dataframe, dp, perfconfig, trades, timeframe=timeframe, perfcheck_timeframe=perfcheck_timeframe)
+    fig, response = render_perfcheck_simple(dataframe, dp, perfconfig, trades, timeframe=timeframe,
+                                            perfcheck_timeframe=perfcheck_timeframe, show_locked=render_extras)
     return fig
 
 
@@ -221,7 +236,105 @@ def create_folder_if_does_not_exist(path):
     return path
 
 
+class PerformanceMeter():
+    wallets = None
+    pair_profits = {}
+    balance_list = None
+    past_cursed_date = None
+    balance_filez = None
+    curdir = os.path.join(os.getcwd(), "user_data")
+    perfcheck_folder = create_folder_if_does_not_exist(os.path.join(curdir, "perfchecks"))
 
+    def __init__(self, perfcheck_config, bot_name, runmode, timeframe):
+        self.balance_list = pd.DataFrame(columns=["date", "total", "used", "free", "locked", "closed_total"])
+        self.perfcheck_config = perfcheck_config  # self.config.get("perfcheck_config")
+        self.perfcheck_config["name"] = bot_name
+        self.timeframe = timeframe
+        self.runmode = runmode
+        if not "update_performance_minutes" in self.perfcheck_config:
+            self.perfcheck_config["update_performance_minutes"] = 15
+        self.multiplier = self.perfcheck_config['update_performance_minutes']
+        self.balance_file_setter()
+
+    def iteration_at_order_filled(self, trade):
+        if trade.pair in list(self.pair_profits.keys()):
+            # print(f"Trade on {trade.pair} has been closed")
+            del self.pair_profits[trade.pair]
+
+    def balance_file_setter(self):
+        if self.balance_filez is None:
+            self.balance_filez = os.path.join(self.perfcheck_folder,
+                                              self.perfcheck_config["name"] + f".{self.runmode}.pkl")
+            if self.runmode in ('hyperopt'):  # self.config['runmode'].value in ('hyperopt'):
+                # self.balance_list = pd.DataFrame(columns=["date", "total", "used", "free"] + self.metric_columns)
+                print("removing the balance list file", self.balance_list)
+                if os.path.exists(self.balance_filez):
+                    os.remove(self.balance_filez)
+            if self.runmode in ('live', 'dry_run') and os.path.exists(self.balance_filez):
+                self.balance_list = pd.read_pickle(self.balance_filez)
+                print("loading again")
+        return self.balance_filez
+
+    def is_available(self):
+        open_positions = self.wallets.get_all_positions()
+        open_tickers = list(set(list(open_positions.keys())))
+        position_pairs_prev = list(set(list(self.pair_profits.keys())))
+        for pair in position_pairs_prev:
+            if pair not in open_tickers:
+                del self.pair_profits[pair]
+
+        position_pairs_prev = list(set(list(self.pair_profits.keys())))
+        position_pairs_prev.sort()
+        open_tickers.sort()
+
+        if position_pairs_prev != open_tickers:
+            print("mismatch", position_pairs_prev, "real", open_tickers)
+
+        return position_pairs_prev == open_tickers
+
+    @lru_cache(maxsize=20)
+    def rare_update_iteration(self, current_time_floored):
+        usdt_free = self.wallets.get_free('USDT')
+        usdt = usdt_free
+        open_positions = self.wallets.get_all_positions()
+
+        for pair, stake in self.pair_profits.items():
+            # print(pair, stake)
+            usdt += stake
+
+        leveraged_margin = 0
+        for pair, i in open_positions.items():
+            leveraged_margin += i.collateral * i.leverage
+
+        used_usdt = self.wallets.get_used('USDT')
+        usdt_total = self.wallets.get_total('USDT')
+        new_element = pd.DataFrame(
+            [{'date': current_time_floored, 'total': usdt, 'free': usdt_free, 'used': used_usdt,
+              'closed_total': usdt_total, "locked": leveraged_margin}]).set_index("date")
+        self.balance_list = self.balance_list.combine_first(new_element)
+        if self.runmode not in ('hyperopt', "backtest"):
+            self.post_trade()
+        return True
+
+    def post_trade(self):
+        self.balance_list.to_pickle(self.balance_filez)
+
+    def iteration_at_custom_exit(self, current_time, trade, current_profit, wallets):
+        if self.wallets is None:
+            self.wallets = wallets
+        date_now = pd.to_datetime(current_time).floor(f"{self.multiplier}min")
+
+        if trade.pair not in list(self.pair_profits.keys()):
+            self.pair_profits[trade.pair] = trade.stake_amount * (1 + current_profit)
+
+        if self.past_cursed_date != date_now and self.is_available():
+            self.rare_update_iteration(date_now)
+
+        # if a is None:
+        #     print("ERROR: update returned none")
+
+        self.pair_profits[trade.pair] = trade.stake_amount * (1 + current_profit)
+        self.past_cursed_date = date_now
 
 
 class PerformanceMeteredStrategy():
@@ -235,6 +348,7 @@ class PerformanceMeteredStrategy():
     losses = 0
     live_perfcheck = Layout(name="no perfcheck yet")
     live_console = None
+    closed_trades = None
     perfcheck_config = None
     initialized = False
     informative_strategies = {}
@@ -242,11 +356,63 @@ class PerformanceMeteredStrategy():
     current_profits = {}
     arbitrage_id = None
 
+    def get_total_profit(self, current_time):
+        start_date = datetime.fromtimestamp(0)
+        Trade.get_open_trades()
+
+        trade_filter = (
+                               Trade.is_open.is_(False) & (Trade.close_date >= start_date)
+                       ) | Trade.is_open.is_(True)
+        trades: Sequence[Trade] = Trade.session.scalars(
+            Trade.get_trades_query(trade_filter, include_orders=False).order_by(Trade.id)
+        ).all()
+
+        profit_all_coin = []
+        profit_all_ratio = []
+        profit_closed_coin = []
+        profit_closed_ratio = []
+        winning_trades = 0
+        losing_trades = 0
+        # winning_profit = 0.0
+        # losing_profit = 0.0
+
+        for trade in trades:
+            if not trade.is_open:
+                profit_ratio = trade.close_profit or 0.0
+                profit_abs = trade.close_profit_abs or 0.0
+                profit_closed_coin.append(profit_abs)
+                profit_closed_ratio.append(profit_ratio)
+                if profit_ratio >= 0:
+                    winning_trades += 1
+                    # winning_profit += profit_abs
+                else:
+                    losing_trades += 1
+                    # losing_profit += profit_abs
+            else:
+                # Get current rate
+                if len(trade.select_filled_orders(trade.entry_side)) == 0:
+                    # Skip trades with no filled orders
+                    continue
+                try:
+                    current_rate = self._freqtrade.exchange.get_rate(
+                        trade.pair, side="exit", is_short=trade.is_short, refresh=False
+                    )
+                except Exception as e:
+                    logger.exception(f"Exception while acquiring current profits: {e}")
+                    return None
+                else:
+                    _profit = trade.calculate_profit(trade.close_rate or current_rate)
+
+                    profit_ratio = _profit.profit_ratio
+                    profit_abs = _profit.total_profit
+
+        return True
+
     def __init__(self, perfcheck_config, bot_name, runmode, timeframe):
         self.timeframe = timeframe
         global multiplier
         self.perfcheck_config = perfcheck_config  # self.config.get("perfcheck_config")
-        self.perfcheck_config["name"] = bot_name# self.config.get("bot_name")
+        self.perfcheck_config["name"] = bot_name  # self.config.get("bot_name")
         self.runmode = runmode
         if "arbitrage-id" in self.perfcheck_config:
             if "arbitrage-sum" not in self.perfcheck_config:
@@ -270,17 +436,17 @@ class PerformanceMeteredStrategy():
     def post_trade(self):
         self.balance_list.to_pickle(self.balance_filez)
         if self.arbitrage_id is not None:
-            blist = self.balance_list.copy()#.rename(columns={"total": "total_" + self.arbitrage_id,
-                                                             # "used": "used_" + self.arbitrage_id,
-                                                             # "free": "free_" + self.arbitrage_id})
+            blist = self.balance_list.copy()  #.rename(columns={"total": "total_" + self.arbitrage_id,
+            # "used": "used_" + self.arbitrage_id,
+            # "free": "free_" + self.arbitrage_id})
             for sumr in self.arbitrage_sum:
                 fpath = self.balance_filez.replace(self.arbitrage_id, sumr)
                 while not os.path.exists(fpath):
                     print("waiting for balance file", fpath)
                     time.sleep(1)
                 df = pd.read_pickle(fpath).rename(columns={"total": "total_" + sumr,
-                                                             "used": "used_" + sumr,
-                                                             "free": "free_" + sumr})
+                                                           "used": "used_" + sumr,
+                                                           "free": "free_" + sumr})
                 blist = pd.merge(left_index=True, right_index=True, left=blist, right=df, how="left")
                 blist["total"] = blist["total"] + blist["total_" + sumr]
             self.balance_list = blist
@@ -323,7 +489,8 @@ class PerformanceMeteredStrategy():
                 usdt_total = self.wallets.get_total('USDT')
                 locked = self.calculate_current_overmargin()
                 new_element = pd.DataFrame(
-                    [{'date': date_now, 'total': current_balance, 'free': usdt_free, 'used': used_usdt, 'closed_total': usdt_total, "locked": locked} | pair_prices])
+                    [{'date': date_now, 'total': current_balance, 'free': usdt_free, 'used': used_usdt,
+                      'closed_total': usdt_total, "locked": locked} | pair_prices])
 
                 new_element.set_index('date', inplace=True)
                 self.balance_list = self.balance_list.combine_first(new_element)
@@ -333,6 +500,7 @@ class PerformanceMeteredStrategy():
             print("Error - current time is none", current_time)
 
     def custom_exit_callback(self, feed_pair, current_time, current_profit, trade, wallets):
+        date_now = pd.to_datetime(current_time).floor(f"{self.perfcheck_config['update_performance_minutes']}min")
         self.initialized = True
         # print(self.initialized)
         self.wallets = wallets
@@ -391,6 +559,7 @@ class PerformanceMeteredStrategy():
                 usdt += stake
             return usdt
         else:
+            print("mismatch", open_tickers, position_pairs_prev)
             return None
 
     def confirm_trade_exit_callback(self, pair, trade, rate, current_time, wallets):
@@ -407,7 +576,6 @@ class PerformanceMeteredStrategy():
         self.render_difference(current_time)
         if self.runmode not in ('hyperopt', "backtest"):
             self.post_trade()
-
 
     def print_performance_stat(self, last_row_init, date, informative_metrics):
         print(date)

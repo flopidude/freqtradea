@@ -1306,7 +1306,7 @@ class IStrategy(ABC, HyperStrategyMixin):
 
         trade.adjust_min_max_rates(high or current_rate, low or current_rate)
         if self.dp.perfcheck_config:
-            self.dp.performance_metered_strategy.custom_exit_callback(trade.pair, current_time, current_profit, trade,
+            self.dp.performance_metered_strategy.iteration_at_custom_exit(current_time, trade, current_profit,
                                                                       self.wallets)
         stoplossflag = self.ft_stoploss_reached(current_rate=current_rate, trade=trade,
                                                 current_time=current_time,

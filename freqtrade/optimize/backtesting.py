@@ -698,6 +698,8 @@ class Backtesting:
         if order and self._get_order_filled(order.ft_price, row):
             order.close_bt_order(current_date, trade)
             self._run_funding_fees(trade, current_date, force=True)
+            if self.dataprovider.perfcheck_config:
+                self.dataprovider.performance_metered_strategy.iteration_at_order_filled(trade)
             strategy_safe_wrapper(self.strategy.order_filled, default_retval=None)(
                 pair=trade.pair,
                 trade=trade,  # type: ignore[arg-type]
@@ -861,10 +863,6 @@ class Backtesting:
         )
         order._trade_bt = trade
         trade.orders.append(order)
-        if self.dataprovider.perfcheck_config:
-            self.dataprovider.performance_metered_strategy.confirm_trade_exit_callback(trade.pair, trade,
-                                                                                       close_rate, trade.close_date_utc,
-                                                                                       self.wallets)
         return trade
 
     def _check_trade_exit(
@@ -1554,17 +1552,17 @@ class Backtesting:
             end_date=max_date,
         )
 
-        if self.dataprovider.perfcheck_config:
-            self.dataprovider.performance_metered_strategy.post_trade()
+        # if self.dataprovider.perfcheck_config:
+        #     self.dataprovider.performance_metered_strategy.post_trade()
+
         if self.config["runmode"].value in ("backtest") and self.dataprovider.perfcheck_config:
-            # self.dataprovider.performance_metered_strategy.post_trade()
             blist = self.dataprovider.performance_metered_strategy.balance_list
             if blist.shape[0] > 0:
 
                 blist[["total", "free", "used", "closed_total"]].ffill(inplace=True)
                 print(blist, "blist")
                 perfcheck_timeframe = self.dataprovider.performance_metered_strategy.perfcheck_config['update_performance_minutes']
-                graph = render_graph(blist, self.dataprovider.performance_metered_strategy.perfcheck_config, self.dataprovider, results["results"].copy(), self.strategy.timeframe, f"{perfcheck_timeframe}m")
+                graph = render_graph(blist, self.dataprovider.performance_metered_strategy.perfcheck_config, self.dataprovider, results["results"].copy(), self.strategy.timeframe, f"{perfcheck_timeframe}m", render_extras=True)
                 return_results(graph)
 
 
