@@ -27,6 +27,7 @@ from freqtrade.exceptions import OperationalException, StrategyError
 from freqtrade.exchange import timeframe_to_minutes, timeframe_to_next_date, timeframe_to_seconds
 from freqtrade.misc import remove_entry_exit_signals
 from freqtrade.persistence import Order, PairLocks, Trade
+
 # from freqtrade.plugins.perfcheck_renderers import PerformanceMeteredStrategy
 from freqtrade.strategy.hyper import HyperStrategyMixin
 from freqtrade.strategy.informative_decorator import (

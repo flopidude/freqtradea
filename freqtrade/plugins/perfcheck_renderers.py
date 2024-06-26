@@ -17,6 +17,7 @@ from rich.prompt import Prompt
 from freqtrade.exchange import timeframe_to_minutes
 from freqtrade.persistence import Trade
 
+
 logger = logging.getLogger(__name__)
 
 multiplier = 15
