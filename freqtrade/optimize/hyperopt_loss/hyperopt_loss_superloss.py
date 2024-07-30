@@ -13,6 +13,7 @@ from freqtrade.constants import Config
 from freqtrade.data.metrics import calculate_calmar
 from freqtrade.optimize.hyperopt import IHyperOptLoss
 from freqtrade.plugins.perfcheck_renderers import calculate_ratios
+import numpy as np
 
 
 logger = logging.getLogger(__name__)
@@ -35,10 +36,18 @@ class Supreme(IHyperOptLoss):
         """
         performance_minutes = config['perfcheck_config'].get('update_performance_minutes', 15)
         print(performance_minutes, "minutes per interval")
+        print(results)
         try: # Should have at least three hours worth of changing balance, not too much to ask for
-            ratios = calculate_ratios(results["total"], timeframe=f"{performance_minutes}m")
+            ratios = calculate_ratios(results["performance"]["total"], timeframe=f"{performance_minutes}m")
         except Exception as e:
             logger.exception(f"{e} while calculating ratios for hyperopt")
             ratios = {"sharpe_ratio": 0, "calmar_ratio": 0}
-        rating = ratios["sharpe_ratio"] * max(ratios["calmar_ratio"], 0)
+        # kdiff = (results["performance"]["total"].iloc[-1] / results["performance"]["total"].iloc[0]) ** 50
+        # height = results["performance"].shape[0] ** 0.2
+        # print(kdiff)
+        if ratios["sharpe_ratio"] is None or ratios["calmar_ratio"] is None:
+            return 0
+        rating = ratios["sharpe_ratio"] * max(ratios["calmar_ratio"], 0)# * kdiff * height
+        if np.isnan(rating):
+            return 0
         return -rating

@@ -41,6 +41,7 @@ def calculate_ratios(account_values: pd.Series, benchmark_returns=None, timefram
         log_mean_return = log_returns.mean() * multmax
         log_std_return = log_returns.std() * np.sqrt(multmax)
         sharpe_ratio = log_mean_return / log_std_return
+        print(max_drawdown)
         calmar_ratio = (account_series.iloc[-1] / account_series.iloc[0] - 1) / abs(max_drawdown)
         m2_ratio = None
         if benchmark_returns is not None:

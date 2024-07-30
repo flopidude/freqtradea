@@ -443,7 +443,7 @@ class Hyperopt:
         loss: float = MAX_LOSS
         if trade_count >= self.config["hyperopt_min_trades"]:
             loss = self.calculate_loss(
-                results=backtesting_results["results"],
+                results=backtesting_results,
                 trade_count=trade_count,
                 min_date=min_date,
                 max_date=max_date,
