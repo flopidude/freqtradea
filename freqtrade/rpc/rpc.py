@@ -11,7 +11,7 @@ from typing import Any, Dict, Generator, List, Optional, Sequence, Tuple, Union
 import psutil
 from dateutil.relativedelta import relativedelta
 from dateutil.tz import tzlocal
-from numpy import NAN, inf, int64, mean
+from numpy import inf, int64, mean, nan
 from pandas import DataFrame, NaT
 from sqlalchemy import func, select
 
@@ -205,9 +205,9 @@ class RPC:
                             trade.pair, side="exit", is_short=trade.is_short, refresh=False
                         )
                     except (ExchangeError, PricingError):
-                        current_rate = NAN
+                        current_rate = nan
                     if len(trade.select_filled_orders(trade.entry_side)) > 0:
-                        current_profit = current_profit_abs = current_profit_fiat = NAN
+                        current_profit = current_profit_abs = current_profit_fiat = nan
                         if not isnan(current_rate):
                             prof = trade.calculate_profit(current_rate)
                             current_profit = prof.profit_ratio
@@ -278,7 +278,7 @@ class RPC:
             raise RPCException("no active trade")
         else:
             trades_list = []
-            fiat_profit_sum = NAN
+            fiat_profit_sum = nan
             for trade in trades:
                 # calculate profit and send message to user
                 try:
@@ -286,9 +286,9 @@ class RPC:
                         trade.pair, side="exit", is_short=trade.is_short, refresh=False
                     )
                 except (PricingError, ExchangeError):
-                    current_rate = NAN
-                    trade_profit = NAN
-                    profit_str = f"{NAN:.2%}"
+                    current_rate = nan
+                    trade_profit = nan
+                    profit_str = f"{nan:.2%}"
                 else:
                     if trade.nr_of_successful_entries > 0:
                         profit = trade.calculate_profit(current_rate)
@@ -534,9 +534,9 @@ class RPC:
                         trade.pair, side="exit", is_short=trade.is_short, refresh=False
                     )
                 except (PricingError, ExchangeError):
-                    current_rate = NAN
-                    profit_ratio = NAN
-                    profit_abs = NAN
+                    current_rate = nan
+                    profit_ratio = nan
+                    profit_abs = nan
                 else:
                     _profit = trade.calculate_profit(trade.close_rate or current_rate)
 
@@ -1327,7 +1327,7 @@ class RPC:
                 # replace NaT with `None`
                 dataframe[date_column] = dataframe[date_column].astype(object).replace({NaT: None})
 
-            dataframe = dataframe.replace({inf: None, -inf: None, NAN: None})
+            dataframe = dataframe.replace({inf: None, -inf: None, nan: None})
 
         res = {
             "pair": pair,
@@ -1476,6 +1476,8 @@ class RPC:
         from freqtrade.resolvers.strategy_resolver import StrategyResolver
 
         strategy = StrategyResolver.load_strategy(config)
+        # Manually load hyperparameters, as we don't call the bot-start callback.
+        strategy.ft_load_hyper_params(False)
 
         if strategy.plot_config and "subplots" not in strategy.plot_config:
             strategy.plot_config["subplots"] = {}

@@ -24,8 +24,8 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ ubuntu-20.04, ubuntu-22.04 ]
-        python-version: ["3.9", "3.10", "3.11", "3.12.3"]
+        os: [ "ubuntu-20.04", "ubuntu-22.04", "ubuntu-24.04" ]
+        python-version: ["3.9", "3.10", "3.11", "3.12"]
 
     steps:
     - uses: actions/checkout@v4
@@ -79,6 +79,11 @@ jobs:
       run: |
         # Allow failure for coveralls
         coveralls || true
+
+    - name: Run json schema extract
+      # This should be kept before the repository check to ensure that the schema is up-to-date
+      run: |
+        python build_helpers/extract_config_json_schema.py
 
     - name: Check for repository changes
       run: |
@@ -134,8 +139,7 @@ jobs:
     strategy:
       matrix:
         os: [ "macos-12", "macos-13", "macos-14" ]
-        # TODO: Remove 3.12 hard-pin once https://github.com/actions/setup-python/issues/883 is fixed.
-        python-version: ["3.9", "3.10", "3.11", "3.12.3"]
+        python-version: ["3.9", "3.10", "3.11", "3.12"]
         exclude:
           - os: "macos-14"
             python-version: "3.9"
@@ -259,7 +263,7 @@ jobs:
     strategy:
       matrix:
         os: [ windows-latest ]
-        python-version: ["3.9", "3.10", "3.11", "3.12.3"]
+        python-version: ["3.9", "3.10", "3.11", "3.12"]
 
     steps:
     - uses: actions/checkout@v4
@@ -323,7 +327,7 @@ jobs:
       run: |
         $PSVersionTable
         Set-PSRepository psgallery -InstallationPolicy trusted
-        Install-Module -Name Pester -RequiredVersion 5.3.1 -Confirm:$false -Force
+        Install-Module -Name Pester -RequiredVersion 5.3.1 -Confirm:$false -Force -SkipPublisherCheck
         $Error.clear()
         Invoke-Pester -Path "tests" -CI
         if ($Error.Length -gt 0) {exit 1}
@@ -380,7 +384,6 @@ jobs:
     - name: Documentation build
       run: |
         pip install -r docs/requirements-docs.txt
-        pip install mkdocs
         mkdocs build
 
     - name: Discord notification
@@ -534,12 +537,12 @@ jobs:
 
 
     - name: Publish to PyPI (Test)
-      uses: pypa/gh-action-pypi-publish@v1.8.14
+      uses: pypa/gh-action-pypi-publish@v1.9.0
       with:
         repository-url: https://test.pypi.org/legacy/
 
     - name: Publish to PyPI
-      uses: pypa/gh-action-pypi-publish@v1.8.14
+      uses: pypa/gh-action-pypi-publish@v1.9.0
 
 
   deploy-docker:

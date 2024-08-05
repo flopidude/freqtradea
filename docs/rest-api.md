@@ -2,7 +2,7 @@
 
 ## FreqUI
 
-FreqUI now has it's own dedicated [documentation section](frequi.md) - please refer to that section for all information regarding the FreqUI.
+FreqUI now has it's own dedicated [documentation section](freq-ui.md) - please refer to that section for all information regarding the FreqUI.
 
 ## Configuration
 
@@ -117,6 +117,14 @@ By default, the script assumes `127.0.0.1` (localhost) and port `8080` to be use
 ``` bash
 freqtrade-client --config rest_config.json <command> [optional parameters]
 ```
+
+Commands with many arguments may require keyword arguments (for clarity) - which can be provided as follows:
+
+``` bash
+freqtrade-client --config rest_config.json forceenter BTC/USDT long enter_tag=GutFeeling
+```
+
+This method will work for all arguments - check the "show" command for a list of available parameters.
 
 ??? Note "Programmatic use"
     The `freqtrade-client` package (installable independent of freqtrade) can be used in your own scripts to interact with the freqtrade API.
