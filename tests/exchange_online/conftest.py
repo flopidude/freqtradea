@@ -1,6 +1,5 @@
 from copy import deepcopy
 from pathlib import Path
-from typing import Tuple
 
 import pytest
 
@@ -10,8 +9,8 @@ from freqtrade.resolvers.exchange_resolver import ExchangeResolver
 from tests.conftest import EXMS, get_default_conf_usdt
 
 
-EXCHANGE_FIXTURE_TYPE = Tuple[Exchange, str]
-EXCHANGE_WS_FIXTURE_TYPE = Tuple[Exchange, str, str]
+EXCHANGE_FIXTURE_TYPE = tuple[Exchange, str]
+EXCHANGE_WS_FIXTURE_TYPE = tuple[Exchange, str, str]
 
 
 # Exchanges that should be tested online
@@ -225,7 +224,7 @@ EXCHANGES = {
                 "id": "123412341234",
                 "create_time": "167997798",
                 "create_time_ms": "167997798825.566200",
-                "currency_pair": "ETH_USDT",
+                "currency_pair": "SOL_USDT",
                 "side": "sell",
                 "role": "taker",
                 "amount": "0.0115",

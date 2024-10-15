@@ -293,6 +293,7 @@ A backtesting result will look like that:
 |-----------------------------+---------------------|
 | Backtesting from            | 2019-01-01 00:00:00 |
 | Backtesting to              | 2019-05-01 00:00:00 |
+| Trading Mode                | Spot                |
 | Max open trades             | 3                   |
 |                             |                     |
 | Total/Daily Avg Trades      | 429 / 3.575         |
@@ -398,6 +399,7 @@ It contains some useful key metrics about performance of your strategy on backte
 |-----------------------------+---------------------|
 | Backtesting from            | 2019-01-01 00:00:00 |
 | Backtesting to              | 2019-05-01 00:00:00 |
+| Trading Mode                | Spot                |
 | Max open trades             | 3                   |
 |                             |                     |
 | Total/Daily Avg Trades      | 429 / 3.575         |
@@ -452,6 +454,7 @@ It contains some useful key metrics about performance of your strategy on backte
 
 - `Backtesting from` / `Backtesting to`: Backtesting range (usually defined with the `--timerange` option).
 - `Max open trades`: Setting of `max_open_trades` (or `--max-open-trades`) - or number of pairs in the pairlist (whatever is lower).
+- `Trading Mode`: Spot or Futures trading.
 - `Total/Daily Avg Trades`: Identical to the total trades of the backtest output table / Total trades divided by the backtesting duration in days (this will give you information about how many trades to expect from the strategy).
 - `Starting balance`: Start balance - as given by dry-run-wallet (config or command line).
 - `Final balance`: Final balance - starting balance + absolute profit.
@@ -530,10 +533,10 @@ You can then load the trades to perform further analysis as shown in the [data a
 Since backtesting lacks some detailed information about what happens within a candle, it needs to take a few assumptions:
 
 - Exchange [trading limits](#trading-limits-in-backtesting) are respected
-- Entries happen at open-price
+- Entries happen at open-price unless a custom price logic has been specified
 - All orders are filled at the requested price (no slippage) as long as the price is within the candle's high/low range
 - Exit-signal exits happen at open-price of the consecutive candle
-- Exits don't free their trade slot for a new trade until the next candle
+- Exits free their trade slot for a new trade with a different pair
 - Exit-signal is favored over Stoploss, because exit-signals are assumed to trigger on candle's open
 - ROI
   - Exits are compared to high - but the ROI value is used (e.g. ROI = 2%, high=5% - so the exit will be at 2%)

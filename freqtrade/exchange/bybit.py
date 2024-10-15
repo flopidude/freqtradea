@@ -2,7 +2,7 @@
 
 import logging
 from datetime import datetime, timedelta
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Optional
 
 import ccxt
 
@@ -11,6 +11,7 @@ from freqtrade.enums import CandleType, MarginMode, PriceType, TradingMode
 from freqtrade.exceptions import DDosProtection, ExchangeError, OperationalException, TemporaryError
 from freqtrade.exchange import Exchange
 from freqtrade.exchange.common import retrier
+from freqtrade.exchange.exchange_types import FtHas
 from freqtrade.util.datetime_helpers import dt_now, dt_ts
 
 
@@ -29,14 +30,20 @@ class Bybit(Exchange):
 
     unified_account = False
 
-    _ft_has: Dict = {
+    _ft_has: FtHas = {
         "ohlcv_candle_limit": 1000,
         "ohlcv_has_history": True,
         "order_time_in_force": ["GTC", "FOK", "IOC", "PO"],
-        "ws.enabled": True,
+        "ws_enabled": True,
         "trades_has_history": False,  # Endpoint doesn't support pagination
+        "exchange_has_overrides": {
+            # Bybit spot does not support fetch_order
+            # Unless the account is unified.
+            # TODO: Can be removed once bybit fully forces all accounts to unified mode.
+            "fetchOrder": False,
+        },
     }
-    _ft_has_futures: Dict = {
+    _ft_has_futures: FtHas = {
         "ohlcv_has_history": True,
         "mark_ohlcv_timeframe": "4h",
         "funding_fee_timeframe": "8h",
@@ -50,16 +57,22 @@ class Bybit(Exchange):
             PriceType.MARK: "MarkPrice",
             PriceType.INDEX: "IndexPrice",
         },
+        "exchange_has_overrides": {
+            "fetchOrder": True,
+        },
     }
 
-    _supported_trading_mode_margin_pairs: List[Tuple[TradingMode, MarginMode]] = [
+    _supported_trading_mode_margin_pairs: list[tuple[TradingMode, MarginMode]] = [
         # TradingMode.SPOT always supported and not required in this list
-        (TradingMode.FUTURES, MarginMode.CROSS), # TODO THIS LINE WAS UNCOMMETED IN A BRINK OF RETARDATION
-        (TradingMode.FUTURES, MarginMode.ISOLATED)
+        (
+            TradingMode.FUTURES,
+            MarginMode.CROSS,
+        ),  # TODO THIS LINE WAS UNCOMMETED IN A BRINK OF RETARDATION
+        (TradingMode.FUTURES, MarginMode.ISOLATED),
     ]
 
     @property
-    def _ccxt_config(self) -> Dict:
+    def _ccxt_config(self) -> dict:
         # Parameters to add directly to ccxt sync/async initialization.
         # ccxt defaults to swap mode.
         config = {}
@@ -68,7 +81,7 @@ class Bybit(Exchange):
         config.update(super()._ccxt_config)
         return config
 
-    def market_is_future(self, market: Dict[str, Any]) -> bool:
+    def market_is_future(self, market: dict[str, Any]) -> bool:
         main = super().market_is_future(market)
         # For ByBit, we'll only support USDT markets for now.
         return main and market["settle"] == "USDT"
@@ -89,9 +102,9 @@ class Bybit(Exchange):
                 # Returns a tuple of bools, first for margin, second for Account
                 if is_unified and len(is_unified) > 1 and is_unified[1]:
                     self.unified_account = True
-                    logger.info("Bybit: Unified account.")
-                    # raise OperationalException("Bybit: Unified account is not supported. "
-                    #                            "Please use a standard (sub)account.")
+                    logger.info(
+                        "Bybit: Unified account. Assuming dedicated subaccount for this bot."
+                    )
                 else:
                     self.unified_account = False
                     logger.info("Bybit: Standard account.")
@@ -125,7 +138,7 @@ class Bybit(Exchange):
         leverage: float,
         reduceOnly: bool,
         time_in_force: str = "GTC",
-    ) -> Dict:
+    ) -> dict:
         params = super()._get_params(
             side=side,
             ordertype=ordertype,
@@ -146,8 +159,7 @@ class Bybit(Exchange):
         stake_amount: float,
         leverage: float,
         wallet_balance: float,  # Or margin balance
-        mm_ex_1: float = 0.0,  # (Binance) Cross only
-        upnl_ex_1: float = 0.0,  # (Binance) Cross only
+        open_trades: list,
     ) -> Optional[float]:
         """
         Important: Must be fetching data from cached values as this is used by backtesting!
@@ -177,6 +189,7 @@ class Bybit(Exchange):
         :param wallet_balance: Amount of margin_mode in the wallet being used to trade
             Cross-Margin Mode: crossWalletBalance
             Isolated-Margin Mode: isolatedWalletBalance
+        :param open_trades: List of other open trades in the same wallet
         """
 
         market = self.markets[pair]
@@ -194,7 +207,7 @@ class Bybit(Exchange):
                 return open_rate * (1 - initial_margin_rate + mm_ratio)
 
         else:
-            return None # TODO THIS LINE WAS ADDED IN IN A BRINK OF RETARDATION
+            return None  # TODO THIS LINE WAS ADDED IN IN A BRINK OF RETARDATION
             raise OperationalException(
                 "Freqtrade only supports isolated futures for leverage trading"
             )
@@ -220,7 +233,7 @@ class Bybit(Exchange):
                 logger.warning(f"Could not update funding fees for {pair}.")
         return 0.0
 
-    def fetch_orders(self, pair: str, since: datetime, params: Optional[Dict] = None) -> List[Dict]:
+    def fetch_orders(self, pair: str, since: datetime, params: Optional[dict] = None) -> list[dict]:
         """
         Fetch all orders for a pair "since"
         :param pair: Pair for the query
@@ -237,8 +250,14 @@ class Bybit(Exchange):
 
         return orders
 
-    def fetch_order(self, order_id: str, pair: str, params: Optional[Dict] = None) -> Dict:
+    def fetch_order(self, order_id: str, pair: str, params: Optional[dict] = None) -> dict:
+        if self.exchange_has("fetchOrder"):
+            # Set acknowledged to True to avoid ccxt exception
+            params = {"acknowledged": True}
+
         order = super().fetch_order(order_id, pair, params)
+        if not order:
+            order = self.fetch_order_emulated(order_id, pair, {})
         if (
             order.get("status") == "canceled"
             and order.get("filled") == 0.0
@@ -249,7 +268,7 @@ class Bybit(Exchange):
         return order
 
     @retrier
-    def get_leverage_tiers(self) -> Dict[str, List[Dict]]:
+    def get_leverage_tiers(self) -> dict[str, list[dict]]:
         """
         Cache leverage tiers for 1 day, since they are not expected to change often, and
         bybit requires pagination to fetch all tiers.

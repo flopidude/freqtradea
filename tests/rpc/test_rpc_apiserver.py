@@ -185,7 +185,7 @@ def test_api_ui_fallback(botclient, mocker):
 def test_api_ui_version(botclient, mocker):
     _ftbot, client = botclient
 
-    mocker.patch("freqtrade.commands.deploy_commands.read_ui_version", return_value="0.1.2")
+    mocker.patch("freqtrade.commands.deploy_ui.read_ui_version", return_value="0.1.2")
     rc = client_get(client, "/ui_version")
     assert rc.status_code == 200
     assert rc.json()["version"] == "0.1.2"
@@ -574,7 +574,6 @@ def test_api_balance(botclient, mocker, rpc_balance, tickers):
         "est_stake_bot": pytest.approx(11.879999),
         "stake": "BTC",
         "is_position": False,
-        "leverage": 1.0,
         "position": 0.0,
         "side": "long",
         "is_bot_managed": True,
@@ -1270,7 +1269,7 @@ def test_api_mix_tag(botclient, fee):
 
 @pytest.mark.parametrize(
     "is_short,current_rate,open_trade_value",
-    [(True, 1.098e-05, 15.0911775), (False, 1.099e-05, 15.1668225)],
+    [(True, 1.098e-05, 6.134625), (False, 1.099e-05, 6.165375)],
 )
 def test_api_status(
     botclient, mocker, ticker, fee, markets, is_short, current_rate, open_trade_value
@@ -1295,7 +1294,7 @@ def test_api_status(
     assert_response(rc)
     assert len(rc.json()) == 4
     assert rc.json()[0] == {
-        "amount": 123.0,
+        "amount": 50.0,
         "amount_requested": 123.0,
         "close_date": None,
         "close_timestamp": None,
@@ -2157,6 +2156,7 @@ def test_api_exchanges(botclient):
         "comment": "",
         "dex": False,
         "is_alias": False,
+        "alias_for": None,
         "trade_modes": [
             {"trading_mode": "spot", "margin_mode": ""},
             {"trading_mode": "futures", "margin_mode": "isolated"},
@@ -2172,6 +2172,7 @@ def test_api_exchanges(botclient):
         "dex": False,
         "comment": "",
         "is_alias": False,
+        "alias_for": None,
         "trade_modes": [{"trading_mode": "spot", "margin_mode": ""}],
     }
     waves = [x for x in response["exchanges"] if x["classname"] == "wavesexchange"][0]
@@ -2183,6 +2184,7 @@ def test_api_exchanges(botclient):
         "dex": True,
         "comment": ANY,
         "is_alias": False,
+        "alias_for": None,
         "trade_modes": [{"trading_mode": "spot", "margin_mode": ""}],
     }
 

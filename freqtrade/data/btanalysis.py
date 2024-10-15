@@ -6,17 +6,17 @@ import logging
 from copy import copy
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, List, Literal, Optional, Union
+from typing import Any, Literal, Optional, Union
 
 import numpy as np
 import pandas as pd
 
 from freqtrade.constants import LAST_BT_RESULT_FN, IntOrInf
 from freqtrade.exceptions import ConfigurationError, OperationalException
+from freqtrade.ft_types import BacktestHistoryEntryType, BacktestResultType
 from freqtrade.misc import file_dump_json, json_load
 from freqtrade.optimize.backtest_caching import get_backtest_metadata_filename
 from freqtrade.persistence import LocalTrade, Trade, init_db
-from freqtrade.types import BacktestHistoryEntryType, BacktestResultType
 
 
 logger = logging.getLogger(__name__)
@@ -137,7 +137,7 @@ def get_latest_hyperopt_file(
     return directory / get_latest_hyperopt_filename(directory)
 
 
-def load_backtest_metadata(filename: Union[Path, str]) -> Dict[str, Any]:
+def load_backtest_metadata(filename: Union[Path, str]) -> dict[str, Any]:
     """
     Read metadata dictionary from backtest results file without reading and deserializing entire
     file.
@@ -176,7 +176,7 @@ def load_backtest_stats(filename: Union[Path, str]) -> BacktestResultType:
     return data
 
 
-def load_and_merge_backtest_result(strategy_name: str, filename: Path, results: Dict[str, Any]):
+def load_and_merge_backtest_result(strategy_name: str, filename: Path, results: dict[str, Any]):
     """
     Load one strategy from multi-strategy result and merge it with results
     :param strategy_name: Name of the strategy contained in the result
@@ -195,12 +195,12 @@ def load_and_merge_backtest_result(strategy_name: str, filename: Path, results: 
             break
 
 
-def _get_backtest_files(dirname: Path) -> List[Path]:
+def _get_backtest_files(dirname: Path) -> list[Path]:
     # Weird glob expression here avoids including .meta.json files.
     return list(reversed(sorted(dirname.glob("backtest-result-*-[0-9][0-9].json"))))
 
 
-def _extract_backtest_result(filename: Path) -> List[BacktestHistoryEntryType]:
+def _extract_backtest_result(filename: Path) -> list[BacktestHistoryEntryType]:
     metadata = load_backtest_metadata(filename)
     return [
         {
@@ -220,14 +220,14 @@ def _extract_backtest_result(filename: Path) -> List[BacktestHistoryEntryType]:
     ]
 
 
-def get_backtest_result(filename: Path) -> List[BacktestHistoryEntryType]:
+def get_backtest_result(filename: Path) -> list[BacktestHistoryEntryType]:
     """
     Get backtest result read from metadata file
     """
     return _extract_backtest_result(filename)
 
 
-def get_backtest_resultlist(dirname: Path) -> List[BacktestHistoryEntryType]:
+def get_backtest_resultlist(dirname: Path) -> list[BacktestHistoryEntryType]:
     """
     Get list of backtest results read from metadata files
     """
@@ -249,7 +249,7 @@ def delete_backtest_result(file_abs: Path):
     file_abs_meta.unlink()
 
 
-def update_backtest_metadata(filename: Path, strategy: str, content: Dict[str, Any]):
+def update_backtest_metadata(filename: Path, strategy: str, content: dict[str, Any]):
     """
     Updates backtest metadata file with new content.
     :raises: ValueError if metadata file does not exist, or strategy is not in this file.
@@ -275,8 +275,8 @@ def get_backtest_market_change(filename: Path, include_ts: bool = True) -> pd.Da
 
 
 def find_existing_backtest_stats(
-    dirname: Union[Path, str], run_ids: Dict[str, str], min_backtest_date: Optional[datetime] = None
-) -> Dict[str, Any]:
+    dirname: Union[Path, str], run_ids: dict[str, str], min_backtest_date: Optional[datetime] = None
+) -> dict[str, Any]:
     """
     Find existing backtest stats that match specified run IDs and load them.
     :param dirname: pathlib.Path object, or string pointing to the file.
@@ -287,7 +287,7 @@ def find_existing_backtest_stats(
     # Copy so we can modify this dict without affecting parent scope.
     run_ids = copy(run_ids)
     dirname = Path(dirname)
-    results: Dict[str, Any] = {
+    results: dict[str, Any] = {
         "metadata": {},
         "strategy": {},
         "strategy_comparison": [],
@@ -401,7 +401,15 @@ def analyze_trade_parallelism(results: pd.DataFrame, timeframe: str) -> pd.DataF
 
     timeframe_freq = timeframe_to_resample_freq(timeframe)
     dates = [
-        pd.Series(pd.date_range(row[1]["open_date"], row[1]["close_date"], freq=timeframe_freq))
+        pd.Series(
+            pd.date_range(
+                row[1]["open_date"],
+                row[1]["close_date"],
+                freq=timeframe_freq,
+                # Exclude right boundary - the date is the candle open date.
+                inclusive="left",
+            )
+        )
         for row in results[["open_date", "close_date"]].iterrows()
     ]
     deltas = [len(x) for x in dates]
@@ -430,7 +438,7 @@ def evaluate_result_multi(
     return df_final[df_final["open_trades"] > max_open_trades]
 
 
-def trade_list_to_dataframe(trades: Union[List[Trade], List[LocalTrade]]) -> pd.DataFrame:
+def trade_list_to_dataframe(trades: Union[list[Trade], list[LocalTrade]]) -> pd.DataFrame:
     """
     Convert list of Trade objects to pandas Dataframe
     :param trades: List of trade objects

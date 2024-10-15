@@ -5,13 +5,13 @@ Minimum age (days listed) pair list filter
 import logging
 from copy import deepcopy
 from datetime import timedelta
-from typing import Dict, List, Optional
+from typing import Optional
 
 from pandas import DataFrame
 
 from freqtrade.constants import ListPairsWithTimeframes
 from freqtrade.exceptions import OperationalException
-from freqtrade.exchange.types import Tickers
+from freqtrade.exchange.exchange_types import Tickers
 from freqtrade.misc import plural
 from freqtrade.plugins.pairlist.IPairList import IPairList, PairlistParameter, SupportsBacktesting
 from freqtrade.util import PeriodicCache, dt_floor_day, dt_now, dt_ts
@@ -27,7 +27,7 @@ class AgeFilter(IPairList):
         super().__init__(*args, **kwargs)
 
         # Checked symbols cache (dictionary of ticker symbol => timestamp)
-        self._symbolsChecked: Dict[str, int] = {}
+        self._symbolsChecked: dict[str, int] = {}
         self._symbolsCheckFailed = PeriodicCache(maxsize=1000, ttl=86_400)
 
         self._min_days_listed = self._pairlistconfig.get("min_days_listed", 10)
@@ -78,7 +78,7 @@ class AgeFilter(IPairList):
         return "Filter pairs by age (days listed)."
 
     @staticmethod
-    def available_parameters() -> Dict[str, PairlistParameter]:
+    def available_parameters() -> dict[str, PairlistParameter]:
         return {
             "min_days_listed": {
                 "type": "number",
@@ -94,7 +94,7 @@ class AgeFilter(IPairList):
             },
         }
 
-    def filter_pairlist(self, pairlist: List[str], tickers: Tickers) -> List[str]:
+    def filter_pairlist(self, pairlist: list[str], tickers: Tickers) -> list[str]:
         """
         :param pairlist: pairlist to filter or sort
         :param tickers: Tickers (from exchange.get_tickers). May be cached.

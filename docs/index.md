@@ -42,6 +42,7 @@ Please read the [exchange specific notes](exchanges.md) to learn about eventual,
 - [X] [Binance](https://www.binance.com/)
 - [X] [Bitmart](https://bitmart.com/)
 - [X] [BingX](https://bingx.com/invite/0EM9RX)
+- [X] [Bybit](https://bybit.com/)
 - [X] [Gate.io](https://www.gate.io/ref/6266643)
 - [X] [HTX](https://www.htx.com/) (Former Huobi)
 - [X] [Kraken](https://kraken.com/)
@@ -84,7 +85,7 @@ To run this bot we recommend you a linux cloud instance with a minimum of:
 
 Alternatively
 
-- Python 3.9+
+- Python 3.10+
 - pip (pip3)
 - git
 - TA-Lib

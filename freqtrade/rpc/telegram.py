@@ -9,6 +9,7 @@ import functools
 import json
 import logging
 import re
+from collections.abc import Coroutine
 from copy import deepcopy
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta
@@ -17,7 +18,7 @@ from html import escape
 from itertools import chain
 from math import isnan
 from threading import Thread
-from typing import Any, Callable, Coroutine, Dict, List, Literal, Optional, Union
+from typing import Any, Callable, Literal, Optional, Union
 
 from tabulate import tabulate
 from telegram import (
@@ -205,16 +206,16 @@ class Telegram(RPCHandler):
         section.
         """
         self._keyboard: List[List[Union[str, KeyboardButton]]] = [
-            ['/graph', '/profit'] + ["/"+i for i in self._config['telegram'].get("custom_commands", [])],
-            ['/status', '/status table', '/performance'],
-            ['/balance', '/start', '/daily', '/help'],
-
+            ["/graph", "/profit"]
+            + ["/" + i for i in self._config["telegram"].get("custom_commands", [])],
+            ["/status", "/status table", "/performance"],
+            ["/balance", "/start", "/daily", "/help"],
         ]
         # do not allow commands with mandatory arguments and critical cmds
         # TODO: DRY! - its not good to list all valid cmds here. But otherwise
         #       this needs refactoring of the whole telegram module (same
         #       problem in _help()).
-        valid_keys: List[str] = [
+        valid_keys: list[str] = [
             r"/start$",
             r"/stop$",
             r"/status$",
@@ -259,8 +260,8 @@ class Telegram(RPCHandler):
             r"/marketdir (long|short|even|none)$",
             r"/marketdir$",
             r"/livegraph$",
-            r"/graph$"
-        ] + [rf"/{i}$" for i in self._config['telegram'].get("custom_commands", [])]
+            r"/graph$",
+        ] + [rf"/{i}$" for i in self._config["telegram"].get("custom_commands", [])]
         # Create keys for generation
         valid_keys_print = [k.replace("$", "") for k in valid_keys]
 
@@ -303,53 +304,58 @@ class Telegram(RPCHandler):
 
         # handled_functions = list(self.methodsWithDecorator(telegram_callback_f))
         # print(handled_functions)
-        self.handled_functions = self._config['telegram'].get("custom_commands", [])
+        self.handled_functions = self._config["telegram"].get("custom_commands", [])
         # self.callback_handlers = {func.__name__: func for func in handled_functions}
-        custom_handles = [CommandHandler(func, self._custom_function_handler) for func in self.handled_functions]
-        logger.info("Custom handers: " + "".join([f'{func}, ' for func in self.handled_functions]))
+        custom_handles = [
+            CommandHandler(func, self._custom_function_handler) for func in self.handled_functions
+        ]
+        logger.info("Custom handers: " + "".join([f"{func}, " for func in self.handled_functions]))
         # Register command handler and start telegram message polling
         handles = [
-            CommandHandler('status', self._status),
-            CommandHandler('profit', self._profit),
-            CommandHandler('balance', self._balance),
-            CommandHandler('start', self._start),
-            CommandHandler('stop', self._stop),
-            CommandHandler('graph', self._graph),
-            CommandHandler('livegraph', self._live_graph),
-            CommandHandler(['forcesell', 'forceexit', 'fx'], self._force_exit),
-            CommandHandler(['forcebuy', 'forcelong'], partial(
-                self._force_enter, order_side=SignalDirection.LONG)),
-            CommandHandler('forceshort', partial(
-                self._force_enter, order_side=SignalDirection.SHORT)),
-            CommandHandler('reload_trade', self._reload_trade_from_exchange),
-            CommandHandler('trades', self._trades),
-            CommandHandler('delete', self._delete_trade),
-            CommandHandler(['coo', 'cancel_open_order'], self._cancel_open_order),
-            CommandHandler('performance', self._performance),
-            CommandHandler(['buys', 'entries'], self._enter_tag_performance),
-            CommandHandler(['sells', 'exits'], self._exit_reason_performance),
-            CommandHandler('mix_tags', self._mix_tag_performance),
-            CommandHandler('stats', self._stats),
-            CommandHandler('daily', self._daily),
-            CommandHandler('weekly', self._weekly),
-            CommandHandler('monthly', self._monthly),
-            CommandHandler('count', self._count),
-            CommandHandler('locks', self._locks),
-            CommandHandler(['unlock', 'delete_locks'], self._delete_locks),
-            CommandHandler(['reload_config', 'reload_conf'], self._reload_config),
-            CommandHandler(['show_config', 'show_conf'], self._show_config),
-            CommandHandler(['stopbuy', 'stopentry'], self._stopentry),
-            CommandHandler('whitelist', self._whitelist),
-            CommandHandler('blacklist', self._blacklist),
-            CommandHandler(['blacklist_delete', 'bl_delete'], self._blacklist_delete),
-            CommandHandler('logs', self._logs),
-            CommandHandler('edge', self._edge),
-            CommandHandler('health', self._health),
-            CommandHandler('help', self._help),
-            CommandHandler('version', self._version),
-            CommandHandler('marketdir', self._changemarketdir),
-            CommandHandler('order', self._order),
-            CommandHandler('list_custom_data', self._list_custom_data),
+            CommandHandler("status", self._status),
+            CommandHandler("profit", self._profit),
+            CommandHandler("balance", self._balance),
+            CommandHandler("start", self._start),
+            CommandHandler("stop", self._stop),
+            CommandHandler("graph", self._graph),
+            CommandHandler("livegraph", self._live_graph),
+            CommandHandler(["forcesell", "forceexit", "fx"], self._force_exit),
+            CommandHandler(
+                ["forcebuy", "forcelong"],
+                partial(self._force_enter, order_side=SignalDirection.LONG),
+            ),
+            CommandHandler(
+                "forceshort", partial(self._force_enter, order_side=SignalDirection.SHORT)
+            ),
+            CommandHandler("reload_trade", self._reload_trade_from_exchange),
+            CommandHandler("trades", self._trades),
+            CommandHandler("delete", self._delete_trade),
+            CommandHandler(["coo", "cancel_open_order"], self._cancel_open_order),
+            CommandHandler("performance", self._performance),
+            CommandHandler(["buys", "entries"], self._enter_tag_performance),
+            CommandHandler(["sells", "exits"], self._exit_reason_performance),
+            CommandHandler("mix_tags", self._mix_tag_performance),
+            CommandHandler("stats", self._stats),
+            CommandHandler("daily", self._daily),
+            CommandHandler("weekly", self._weekly),
+            CommandHandler("monthly", self._monthly),
+            CommandHandler("count", self._count),
+            CommandHandler("locks", self._locks),
+            CommandHandler(["unlock", "delete_locks"], self._delete_locks),
+            CommandHandler(["reload_config", "reload_conf"], self._reload_config),
+            CommandHandler(["show_config", "show_conf"], self._show_config),
+            CommandHandler(["stopbuy", "stopentry"], self._stopentry),
+            CommandHandler("whitelist", self._whitelist),
+            CommandHandler("blacklist", self._blacklist),
+            CommandHandler(["blacklist_delete", "bl_delete"], self._blacklist_delete),
+            CommandHandler("logs", self._logs),
+            CommandHandler("edge", self._edge),
+            CommandHandler("health", self._health),
+            CommandHandler("help", self._help),
+            CommandHandler("version", self._version),
+            CommandHandler("marketdir", self._changemarketdir),
+            CommandHandler("order", self._order),
+            CommandHandler("list_custom_data", self._list_custom_data),
         ] + custom_handles
         callbacks = [
             CallbackQueryHandler(self._status_table, pattern="update_status_table"),
@@ -367,7 +373,9 @@ class Telegram(RPCHandler):
             ),
             CallbackQueryHandler(self._mix_tag_performance, pattern="update_mix_tag_performance"),
             CallbackQueryHandler(self._count, pattern="update_count"),
-            CallbackQueryHandler(self._custom_function_callback_handler, pattern=r"custom_handler__\S+"),
+            CallbackQueryHandler(
+                self._custom_function_callback_handler, pattern=r"custom_handler__\S+"
+            ),
             CallbackQueryHandler(self._force_exit_inline, pattern=r"force_exit__\S+"),
             CallbackQueryHandler(self._force_enter_inline, pattern=r"force_enter__\S+"),
         ]
@@ -662,16 +670,16 @@ class Telegram(RPCHandler):
         else:
             return "\N{CROSS MARK}"
 
-    def _prepare_order_details(self, filled_orders: List, quote_currency: str, is_open: bool):
+    def _prepare_order_details(self, filled_orders: list, quote_currency: str, is_open: bool):
         """
         Prepare details of trade with entry adjustment enabled
         """
-        lines_detail: List[str] = []
+        lines_detail: list[str] = []
         if len(filled_orders) > 0:
             first_avg = filled_orders[0]["safe_price"]
         order_nr = 0
         for order in filled_orders:
-            lines: List[str] = []
+            lines: list[str] = []
             if order["is_open"] is True:
                 continue
             order_nr += 1
@@ -730,7 +738,7 @@ class Telegram(RPCHandler):
             lines.extend(lines_detail if lines_detail else "")
             await self.__send_order_msg(lines, r)
 
-    async def __send_order_msg(self, lines: List[str], r: Dict[str, Any]) -> None:
+    async def __send_order_msg(self, lines: list[str], r: dict[str, Any]) -> None:
         """
         Send status message.
         """
@@ -873,7 +881,7 @@ class Telegram(RPCHandler):
 
             await self.__send_status_msg(lines, r)
 
-    async def __send_status_msg(self, lines: List[str], r: Dict[str, Any]) -> None:
+    async def __send_status_msg(self, lines: list[str], r: dict[str, Any]) -> None:
         """
         Send status message.
         """
@@ -1201,7 +1209,6 @@ class Telegram(RPCHandler):
                     curr_output = (
                         f"*{curr['currency']}:*\n"
                         f"\t`{curr['side']}: {curr['position']:.8f}`\n"
-                        f"\t`Leverage: {curr['leverage']:.1f}`\n"
                         f"\t`Est. {curr['stake']}: "
                         f"{fmt_coin(curr['est_stake'], curr['stake'], False)}`\n"
                     )
@@ -1315,14 +1322,14 @@ class Telegram(RPCHandler):
 
     async def _custom_function_handler(self, update: Update, context) -> None:
         command_name = update.message.text.split(" ")[0].split("/")[1].strip()
-        logger.info(f'Invoking {command_name}')
+        logger.info(f"Invoking {command_name}")
         # print(command_name)
         # try:
         command_function = getattr(self._rpc._freqtrade.strategy, command_name)
         # print(command_function)
         result = await command_function(context.args)
         for message in result:
-            await self._send_msg(**message) # unpacks dict into arguments for the function
+            await self._send_msg(**message)  # unpacks dict into arguments for the function
         # message = result["output"]
         # is_table = result["table"]
         # # print(result)
@@ -1375,7 +1382,7 @@ class Telegram(RPCHandler):
                 InlineKeyboardButton(text=trade[1], callback_data=f"force_exit__{trade[0]}")
                 for trade in trades
             ]
-            buttons_aligned = self._layout_inline_keyboard_onecol(trade_buttons)
+            buttons_aligned = self._layout_inline_keyboard(trade_buttons, cols=1)
 
             buttons_aligned.append(
                 [InlineKeyboardButton(text="Cancel", callback_data="force_exit__cancel")]
@@ -1445,14 +1452,8 @@ class Telegram(RPCHandler):
 
     @staticmethod
     def _layout_inline_keyboard(
-        buttons: List[InlineKeyboardButton], cols=3
-    ) -> List[List[InlineKeyboardButton]]:
-        return [buttons[i : i + cols] for i in range(0, len(buttons), cols)]
-
-    @staticmethod
-    def _layout_inline_keyboard_onecol(
-        buttons: List[InlineKeyboardButton], cols=1
-    ) -> List[List[InlineKeyboardButton]]:
+        buttons: list[InlineKeyboardButton], cols=3
+    ) -> list[list[InlineKeyboardButton]]:
         return [buttons[i : i + cols] for i in range(0, len(buttons), cols)]
 
     @authorized_only
@@ -1731,15 +1732,19 @@ class Telegram(RPCHandler):
         if not self._rpc._freqtrade.strategy.dp.perfcheck_config:
             await self._send_msg("Strategy is not being metered.", parse_mode=ParseMode.HTML)
         else:
-
             performance_meter = self._rpc._freqtrade.strategy.dp.performance_metered_strategy
             # graph_name = performance_meter.perfcheck_config["name"]
             if performance_meter.balance_list.shape[0] > 0:
                 blist = performance_meter.balance_list
                 trades = self._rpc._rpc_all_trades()
                 print(trades)
-                graph = render_graph(blist, performance_meter.perfcheck_config,
-                                     self._rpc._freqtrade.dataprovider, trades, self._rpc._freqtrade.strategy.timeframe)
+                graph = render_graph(
+                    blist,
+                    performance_meter.perfcheck_config,
+                    self._rpc._freqtrade.dataprovider,
+                    trades,
+                    self._rpc._freqtrade.strategy.timeframe,
+                )
                 # graph = render_graph(blist, performance_meter.perfcheck_config)
                 graph_file_name = performance_meter.balance_filez
                 if message:
@@ -1754,7 +1759,9 @@ class Telegram(RPCHandler):
                 #     await self.send_msg("Performance meter is not initialized.", parse_mode=ParseMode.HTML)
                 #     return
             else:
-                await self._send_msg("Performance meter file not initialized", parse_mode=ParseMode.HTML)
+                await self._send_msg(
+                    "Performance meter file not initialized", parse_mode=ParseMode.HTML
+                )
                 return
 
     async def _graph(self, update: Update, context: CallbackContext) -> None:
@@ -1846,7 +1853,7 @@ class Telegram(RPCHandler):
         """
         await self.send_blacklist_msg(self._rpc._rpc_blacklist(context.args))
 
-    async def send_blacklist_msg(self, blacklist: Dict):
+    async def send_blacklist_msg(self, blacklist: dict):
         errmsgs = []
         for _, error in blacklist["errors"].items():
             errmsgs.append(f"Error: {error['error_msg']}")
@@ -2154,32 +2161,30 @@ class Telegram(RPCHandler):
         try:
             try:
                 await self._app.bot.send_photo(
-                    self._config['telegram']['chat_id'],
-                    photo=open(pic_path, "rb")
+                    self._config["telegram"]["chat_id"], photo=open(pic_path, "rb")
                 )
             except NetworkError as network_err:
                 # Sometimes the telegram server resets the current connection,
                 # if this is the case we send the message again.
                 logger.warning(
-                    'Telegram NetworkError: %s! Trying one more time.',
-                    network_err.message
+                    "Telegram NetworkError: %s! Trying one more time.", network_err.message
                 )
                 await self._app.bot.send_photo(
-                    self._config['telegram']['chat_id'],
-                    photo=open(pic_path, "rb")
+                    self._config["telegram"]["chat_id"], photo=open(pic_path, "rb")
                 )
         except TelegramError as telegram_err:
-            logger.warning(
-                'TelegramError: %s! Giving up on that message.',
-                telegram_err.message
-            )
+            logger.warning("TelegramError: %s! Giving up on that message.", telegram_err.message)
 
-    async def _send_msg(self, msg: str, parse_mode: str = ParseMode.MARKDOWN,
-                        disable_notification: bool = False,
-                        keyboard: Optional[List[List[InlineKeyboardButton]]] = None,
-                        callback_path: str = "",
-                        reload_able: bool = False,
-                        query: Optional[CallbackQuery] = None) -> None:
+    async def _send_msg(
+        self,
+        msg: str,
+        parse_mode: str = ParseMode.MARKDOWN,
+        disable_notification: bool = False,
+        keyboard: Optional[list[list[InlineKeyboardButton]]] = None,
+        callback_path: str = "",
+        reload_able: bool = False,
+        query: Optional[CallbackQuery] = None,
+    ) -> None:
         """
         Send given markdown message
         :param msg: message

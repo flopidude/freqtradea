@@ -1,6 +1,6 @@
 import logging
 from datetime import datetime, timedelta
-from typing import Any, Dict, Optional
+from typing import Any, Optional
 
 from freqtrade.constants import Config, LongShort
 from freqtrade.enums import ExitType
@@ -15,7 +15,7 @@ class StoplossGuard(IProtection):
     has_global_stop: bool = True
     has_local_stop: bool = True
 
-    def __init__(self, config: Config, protection_config: Dict[str, Any]) -> None:
+    def __init__(self, config: Config, protection_config: dict[str, Any]) -> None:
         super().__init__(config, protection_config)
 
         self._trade_limit = protection_config.get("trade_limit", 10)
@@ -38,7 +38,7 @@ class StoplossGuard(IProtection):
         """
         return (
             f"{self._trade_limit} stoplosses in {self._lookback_period} min, "
-            f"locking for {self._stop_duration} min."
+            f"locking {self.unlock_reason_time_element}."
         )
 
     def _stoploss_guard(
@@ -78,7 +78,7 @@ class StoplossGuard(IProtection):
             f"stoplosses within {self._lookback_period} minutes.",
             logger.info,
         )
-        until = self.calculate_lock_end(trades, self._stop_duration)
+        until = self.calculate_lock_end(trades)
         return ProtectionReturn(
             lock=True,
             until=until,

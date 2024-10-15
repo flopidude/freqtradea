@@ -1,6 +1,6 @@
 import logging
 from datetime import datetime, timedelta
-from typing import Any, Dict, Optional
+from typing import Any, Optional
 
 import pandas as pd
 
@@ -17,7 +17,7 @@ class MaxDrawdown(IProtection):
     has_global_stop: bool = True
     has_local_stop: bool = False
 
-    def __init__(self, config: Config, protection_config: Dict[str, Any]) -> None:
+    def __init__(self, config: Config, protection_config: dict[str, Any]) -> None:
         super().__init__(config, protection_config)
 
         self._trade_limit = protection_config.get("trade_limit", 1)
@@ -39,7 +39,7 @@ class MaxDrawdown(IProtection):
         """
         return (
             f"{drawdown} passed {self._max_allowed_drawdown} in {self.lookback_period_str}, "
-            f"locking for {self.stop_duration_str}."
+            f"locking {self.unlock_reason_time_element}."
         )
 
     def _max_drawdown(self, date_now: datetime) -> Optional[ProtectionReturn]:
@@ -70,7 +70,8 @@ class MaxDrawdown(IProtection):
                 f" within {self.lookback_period_str}.",
                 logger.info,
             )
-            until = self.calculate_lock_end(trades, self._stop_duration)
+
+            until = self.calculate_lock_end(trades)
 
             return ProtectionReturn(
                 lock=True,

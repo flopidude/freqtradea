@@ -129,3 +129,5 @@ NostalgiaForInfinityImport/
 copy-trading-pairs.ipynb
 
 data/
+
+docker-compose-*.yml

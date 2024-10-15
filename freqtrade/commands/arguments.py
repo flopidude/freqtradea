@@ -5,7 +5,7 @@ This module contains the argument manager class
 from argparse import ArgumentParser, Namespace, _ArgumentGroup
 from functools import partial
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Optional, Union
 
 from freqtrade.commands.cli_options import AVAILABLE_CLI_OPTIONS
 from freqtrade.constants import DEFAULT_CONFIG
@@ -23,7 +23,7 @@ ARGS_STRATEGY = [
 
 ARGS_TRADE = ["db_url", "sd_notify", "dry_run", "dry_run_wallet", "fee"]
 
-ARGS_WEBSERVER: List[str] = []
+ARGS_WEBSERVER: list[str] = []
 
 ARGS_COMMON_OPTIMIZE = [
     "timeframe",
@@ -132,7 +132,15 @@ ARGS_CONVERT_TRADES = [
     "trading_mode",
 ]
 
-ARGS_LIST_DATA = ["exchange", "dataformat_ohlcv", "pairs", "trading_mode", "show_timerange"]
+ARGS_LIST_DATA = [
+    "exchange",
+    "dataformat_ohlcv",
+    "dataformat_trades",
+    "trades",
+    "pairs",
+    "trading_mode",
+    "show_timerange",
+]
 
 ARGS_DOWNLOAD_DATA = [
     "pairs",
@@ -220,6 +228,8 @@ ARGS_ANALYZE_ENTRIES_EXITS = [
     "enter_reason_list",
     "exit_reason_list",
     "indicator_list",
+    "entry_only",
+    "exit_only",
     "timerange",
     "analysis_rejected",
     "analysis_to_csv",
@@ -267,11 +277,11 @@ class Arguments:
     Arguments Class. Manage the arguments received by the cli
     """
 
-    def __init__(self, args: Optional[List[str]]) -> None:
+    def __init__(self, args: Optional[list[str]]) -> None:
         self.args = args
         self._parsed_arg: Optional[Namespace] = None
 
-    def get_parsed_arg(self) -> Dict[str, Any]:
+    def get_parsed_arg(self) -> dict[str, Any]:
         """
         Return the list of arguments
         :return: List[str] List of arguments
@@ -312,7 +322,7 @@ class Arguments:
         return parsed_arg
 
     def _build_args(
-        self, optionlist: List[str], parser: Union[ArgumentParser, _ArgumentGroup]
+        self, optionlist: list[str], parser: Union[ArgumentParser, _ArgumentGroup]
     ) -> None:
         for val in optionlist:
             opt = AVAILABLE_CLI_OPTIONS[val]

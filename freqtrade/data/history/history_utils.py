@@ -2,7 +2,7 @@ import logging
 import operator
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import Optional
 
 from pandas import DataFrame, concat
 
@@ -17,7 +17,6 @@ from freqtrade.constants import (
 from freqtrade.data.converter import (
     clean_ohlcv_dataframe,
     convert_trades_to_ohlcv,
-    ohlcv_to_dataframe,
     trades_df_remove_duplicates,
     trades_list_to_df,
 )
@@ -78,7 +77,7 @@ def load_pair_history(
 def load_data(
     datadir: Path,
     timeframe: str,
-    pairs: List[str],
+    pairs: list[str],
     *,
     timerange: Optional[TimeRange] = None,
     fill_up_missing: bool = True,
@@ -87,7 +86,7 @@ def load_data(
     data_format: str = "feather",
     candle_type: CandleType = CandleType.SPOT,
     user_futures_funding_rate: Optional[int] = None,
-) -> Dict[str, DataFrame]:
+) -> dict[str, DataFrame]:
     """
     Load ohlcv history data for a list of pairs.
 
@@ -102,7 +101,7 @@ def load_data(
     :param candle_type: Any of the enum CandleType (must match trading mode!)
     :return: dict(<pair>:<Dataframe>)
     """
-    result: Dict[str, DataFrame] = {}
+    result: dict[str, DataFrame] = {}
     if startup_candles > 0 and timerange:
         logger.info(f"Using indicator startup period: {startup_candles} ...")
 
@@ -136,7 +135,7 @@ def refresh_data(
     *,
     datadir: Path,
     timeframe: str,
-    pairs: List[str],
+    pairs: list[str],
     exchange: Exchange,
     data_format: Optional[str] = None,
     timerange: Optional[TimeRange] = None,
@@ -173,7 +172,7 @@ def _load_cached_data_for_updating(
     data_handler: IDataHandler,
     candle_type: CandleType,
     prepend: bool = False,
-) -> Tuple[DataFrame, Optional[int], Optional[int]]:
+) -> tuple[DataFrame, Optional[int], Optional[int]]:
     """
     Load cached data to download more data.
     If timerange is passed in, checks whether data from an before the stored data will be
@@ -273,7 +272,7 @@ def _download_pair_history(
         )
 
         # Default since_ms to 30 days if nothing is given
-        new_data = exchange.get_historic_ohlcv(
+        new_dataframe = exchange.get_historic_ohlcv(
             pair=pair,
             timeframe=timeframe,
             since_ms=(
@@ -284,10 +283,6 @@ def _download_pair_history(
             is_new_pair=data.empty,
             candle_type=candle_type,
             until_ms=until_ms if until_ms else None,
-        )
-        # TODO: Maybe move parsing to exchange class (?)
-        new_dataframe = ohlcv_to_dataframe(
-            new_data, timeframe, pair, fill_missing=False, drop_incomplete=True
         )
         if data.empty:
             data = new_dataframe
@@ -323,8 +318,8 @@ def _download_pair_history(
 
 def refresh_backtest_ohlcv_data(
     exchange: Exchange,
-    pairs: List[str],
-    timeframes: List[str],
+    pairs: list[str],
+    timeframes: list[str],
     datadir: Path,
     trading_mode: str,
     timerange: Optional[TimeRange] = None,
@@ -332,7 +327,7 @@ def refresh_backtest_ohlcv_data(
     erase: bool = False,
     data_format: Optional[str] = None,
     prepend: bool = False,
-) -> List[str]:
+) -> list[str]:
     """
     Refresh stored ohlcv data for backtesting and hyperopt operations.
     Used by freqtrade download-data subcommand.
@@ -494,14 +489,14 @@ def _download_trades_history(
 
 def refresh_backtest_trades_data(
     exchange: Exchange,
-    pairs: List[str],
+    pairs: list[str],
     datadir: Path,
     timerange: TimeRange,
     trading_mode: TradingMode,
     new_pairs_days: int = 30,
     erase: bool = False,
     data_format: str = "feather",
-) -> List[str]:
+) -> list[str]:
     """
     Refresh stored trades data for backtesting and hyperopt operations.
     Used by freqtrade download-data subcommand.
@@ -536,7 +531,7 @@ def refresh_backtest_trades_data(
     return pairs_not_available
 
 
-def get_timerange(data: Dict[str, DataFrame]) -> Tuple[datetime, datetime]:
+def get_timerange(data: dict[str, DataFrame]) -> tuple[datetime, datetime]:
     """
     Get the maximum common timerange for the given backtest data.
 
@@ -593,7 +588,7 @@ def download_data_main(config: Config) -> None:
     # Remove stake-currency to skip checks which are not relevant for datadownload
     config["stake_currency"] = ""
 
-    pairs_not_available: List[str] = []
+    pairs_not_available: list[str] = []
 
     # Init exchange
     from freqtrade.resolvers.exchange_resolver import ExchangeResolver
@@ -610,9 +605,6 @@ def download_data_main(config: Config) -> None:
     if "timeframes" not in config:
         config["timeframes"] = DL_DATA_TIMEFRAMES
 
-    # Manual validations of relevant settings
-    if not config["exchange"].get("skip_pair_validation", False):
-        exchange.validate_pairs(expanded_pairs)
     logger.info(
         f"About to download pairs: {expanded_pairs}, "
         f"intervals: {config['timeframes']} to {config['datadir']}"
