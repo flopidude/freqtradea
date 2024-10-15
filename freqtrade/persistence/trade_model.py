@@ -1468,7 +1468,7 @@ class LocalTrade:
         return Trade.get_trades_proxy(is_open=True)
 
     @staticmethod
-    def get_closed_trades() -> List[Any]:
+    def get_closed_trades() -> list[Any]:
         """
         Retrieve open trades
         """
