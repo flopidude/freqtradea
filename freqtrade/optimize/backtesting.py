@@ -1582,7 +1582,7 @@ class Backtesting:
                     f"{perfcheck_timeframe}m",
                     render_extras=True,
                 )
-                return_results(graph)
+                return_results(graph, self.dataprovider.performance_metered_strategy.balance_filez, image_only=False)
 
         backtest_end_time = datetime.now(timezone.utc)
         results.update(

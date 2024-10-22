@@ -221,13 +221,15 @@ def render_graph(dataframe, perfconfig, dp, trades, timeframe="1m", perfcheck_ti
     return fig
 
 
-def return_results(fig, file_name=None, resolution_x=1200, resolution_y=800):
-    if file_name is not None:
+def return_results(fig, file_name, resolution_x=1200, resolution_y=800, image_only=False):
+    if image_only:
         image_file = f"{file_name.replace('.pkl', '')}_graph.png"
         fig.write_image(image_file, format="png", width=resolution_x, height=resolution_y)
         return image_file
     else:
-        fig.show(renderer='browser')
+        file_name = f"{file_name.replace('.pkl', '')}_graph.html"
+        print("Saving", file_name)
+        fig.write_html(file_name)
         return
 
 

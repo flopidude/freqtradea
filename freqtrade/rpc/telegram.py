@@ -1748,11 +1748,11 @@ class Telegram(RPCHandler):
                 # graph = render_graph(blist, performance_meter.perfcheck_config)
                 graph_file_name = performance_meter.balance_filez
                 if message:
-                    image_file_path = return_results(graph, graph_file_name)
+                    image_file_path = return_results(graph, graph_file_name, image_only=True)
                     logger.info(f"Fetching graph from {image_file_path}")
                     await self._send_pic(image_file_path)
                 else:
-                    return_results(graph)
+                    return_results(graph, graph_file_name, image_only=False)
                 # await self.
                 # await self._send_msg(file_name, parse_mode=ParseMode.HTML)
                 # if not performance_meter.initialized:
