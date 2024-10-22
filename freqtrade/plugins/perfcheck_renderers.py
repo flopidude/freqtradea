@@ -23,7 +23,9 @@ logger = logging.getLogger(__name__)
 multiplier = 15
 
 
-def calculate_ratios(account_values: pd.Series, benchmark_returns=None, timeframe: [str, None] = None):
+def calculate_ratios(
+    account_values: pd.Series, benchmark_returns=None, timeframe: [str, None] = None
+):
     # Calculate dynamic multiplier based on average timedelta of the index
     timeframe_multiplier = timeframe_to_minutes(timeframe) if timeframe is not None else multiplier
     print("Timeframe multiplier", timeframe_multiplier)
@@ -52,172 +54,209 @@ def calculate_ratios(account_values: pd.Series, benchmark_returns=None, timefram
     except Exception as e:
         print(e)
     finally:
-        return {
-            f'sharpe_ratio': sharpe_ratio,
-            f'calmar_ratio': calmar_ratio,
-            f'm2_ratio': m2_ratio
-        }
+        return {f"sharpe_ratio": sharpe_ratio, f"calmar_ratio": calmar_ratio, f"m2_ratio": m2_ratio}
 
 
 def generate_benchmark(dp, trades, first_date, initial_investment=10000, timeframe="1m"):
-    pair_trade_counts = trades.groupby('pair')['is_short'].apply(
-        lambda x: (x == False).sum() - (x == True).sum()).to_dict()
+    pair_trade_counts = (
+        trades.groupby("pair")["is_short"]
+        .apply(lambda x: (x == False).sum() - (x == True).sum())
+        .to_dict()
+    )
     total_trade_count = sum(abs(count) for count in pair_trade_counts.values())
-    pair_trade_percentages = {pair: (count / total_trade_count) for pair, count in pair_trade_counts.items()}
+    pair_trade_percentages = {
+        pair: (count / total_trade_count) for pair, count in pair_trade_counts.items()
+    }
     # print(pair_trade_counts, pair_trade_percentages)
     # Generate a DataFrame consisting of total balance by each datapoint in the data column
     balance_by_date = pd.DataFrame()
 
     for pair, percentage in pair_trade_percentages.items():
         pair_df = dp.historic_ohlcv(pair, timeframe)
-        pair_df = pair_df[pair_df['date'] >= first_date]
+        pair_df = pair_df[pair_df["date"] >= first_date]
         print(pair_df)
-        allocated_balance = initial_investment * abs(percentage)  # Assuming initial_balance is available in dp
-        pair_df['allocated_balance'] = allocated_balance
-        change_series = pair_df['close'] / pair_df['close'].iloc[0] if percentage > 0 else pair_df['close'].iloc[0] / \
-                                                                                           pair_df['close']
-        pair_short = pair.split('/')[0]
-        pair_df[f'total_value_{pair_short}'] = pair_df['allocated_balance'] * change_series
+        allocated_balance = initial_investment * abs(
+            percentage
+        )  # Assuming initial_balance is available in dp
+        pair_df["allocated_balance"] = allocated_balance
+        change_series = (
+            pair_df["close"] / pair_df["close"].iloc[0]
+            if percentage > 0
+            else pair_df["close"].iloc[0] / pair_df["close"]
+        )
+        pair_short = pair.split("/")[0]
+        pair_df[f"total_value_{pair_short}"] = pair_df["allocated_balance"] * change_series
 
-        pair_df.set_index('date', inplace=True)
-        pair_df = pair_df[[f'total_value_{pair_short}']]
+        pair_df.set_index("date", inplace=True)
+        pair_df = pair_df[[f"total_value_{pair_short}"]]
         print(
-            f"Profit for {pair_short} is {pair_df[f'total_value_{pair_short}'].iloc[-1]}, initial investment is {pair_df[f'total_value_{pair_short}'].iloc[0]}")
+            f"Profit for {pair_short} is {pair_df[f'total_value_{pair_short}'].iloc[-1]}, initial investment is {pair_df[f'total_value_{pair_short}'].iloc[0]}"
+        )
         balance_by_date = balance_by_date.combine_first(pair_df)
 
     balance_by_date = balance_by_date.ffill().bfill()
 
     # print(balance_by_date)
 
-    balance_by_date["benchmark"] = (balance_by_date.sum(axis=1))
+    balance_by_date["benchmark"] = balance_by_date.sum(axis=1)
     return balance_by_date
 
 
 def generate_profit_single_pair(dp, pair, first_date, initial_investment=10000, timeframe="1m"):
     pair_df = dp.historic_ohlcv(pair, timeframe)
-    pair_df = pair_df[pair_df['date'] >= first_date]
+    pair_df = pair_df[pair_df["date"] >= first_date]
     print(pair_df)
-    pair_df['allocated_balance'] = initial_investment
-    pair_df['benchmark'] = pair_df['close'] / pair_df['close'].iloc[0] * pair_df['allocated_balance']
+    pair_df["allocated_balance"] = initial_investment
+    pair_df["benchmark"] = (
+        pair_df["close"] / pair_df["close"].iloc[0] * pair_df["allocated_balance"]
+    )
     pair_df.set_index("date", inplace=True)
     print(pair_df)
     return pair_df
 
 
-def render_perfcheck_simple(balance_df: pd.DataFrame, dp, perfconfig, trades: pd.DataFrame = None,
-                            initial_investment=None, timeframe="1m", perfcheck_timeframe="15m", show_locked=False):
+def render_perfcheck_simple(
+    balance_df: pd.DataFrame,
+    dp,
+    perfconfig,
+    trades: pd.DataFrame = None,
+    initial_investment=None,
+    timeframe="1m",
+    perfcheck_timeframe="15m",
+    show_locked=False,
+):
     initial_investment = next(
-        item for item in [initial_investment, balance_df['closed_total'].bfill().iloc[0], 10000] if item is not None)
+        item
+        for item in [initial_investment, balance_df["closed_total"].bfill().iloc[0], 10000]
+        if item is not None
+    )
     # Generate benchmark using the dataprovider and the initial investment
     errors = {}
     first_date = balance_df.index[0]
     benchmark_df = None
     try:
         if trades is None or trades.shape[0] == 0:
-            benchmark_df = generate_profit_single_pair(dp, "BTC/USDT:USDT", first_date, initial_investment, timeframe)
+            benchmark_df = generate_profit_single_pair(
+                dp, "BTC/USDT:USDT", first_date, initial_investment, timeframe
+            )
         else:
             try:
-                benchmark_df = generate_benchmark(dp, trades, first_date, initial_investment, timeframe)
+                benchmark_df = generate_benchmark(
+                    dp, trades, first_date, initial_investment, timeframe
+                )
             except Exception as e:
-                benchmark_df = generate_profit_single_pair(dp, "BTC/USDT:USDT", first_date, initial_investment,
-                                                           timeframe)
+                benchmark_df = generate_profit_single_pair(
+                    dp, "BTC/USDT:USDT", first_date, initial_investment, timeframe
+                )
                 print("Error generating benchmark:", e)
     except Exception as e:
         errors["benchmark"] = e
 
-    has_benchmark = "benchmark" not in errors and benchmark_df is not None and benchmark_df.shape[0] > 0
+    has_benchmark = (
+        "benchmark" not in errors and benchmark_df is not None and benchmark_df.shape[0] > 0
+    )
 
     fig = make_subplots(rows=1, cols=2)
 
     # Add the account balance line
     fig.add_trace(
-        go.Scatter(
-            x=balance_df.index,
-            y=balance_df['total'],
-            mode='lines',
-            name='Account Balance'
-        )
+        go.Scatter(x=balance_df.index, y=balance_df["total"], mode="lines", name="Account Balance")
     )
     # Add the account closed balance line
     fig.add_trace(
         go.Scatter(
             x=balance_df.index,
-            y=balance_df['closed_total'],
-            mode='lines',
-            name='Account Balance (Closed)'
+            y=balance_df["closed_total"],
+            mode="lines",
+            name="Account Balance (Closed)",
         )
     )
     if show_locked:
         fig.add_trace(
             go.Scatter(
                 x=balance_df.index,
-                y=balance_df['locked'],
-                mode='lines',
-                name='Locked Leveraged Margin'
+                y=balance_df["locked"],
+                mode="lines",
+                name="Locked Leveraged Margin",
             )
         )
         fig.add_trace(
             go.Scatter(
                 x=balance_df.index,
-                y=balance_df['used'],
-                mode='lines',
-                name='Locked Unleveraged Margin'
+                y=balance_df["used"],
+                mode="lines",
+                name="Locked Unleveraged Margin",
             )
         )
-    ratios = calculate_ratios(balance_df['total'], benchmark_df['benchmark'] if has_benchmark else None,
-                              perfcheck_timeframe)
+    ratios = calculate_ratios(
+        balance_df["total"],
+        benchmark_df["benchmark"] if has_benchmark else None,
+        perfcheck_timeframe,
+    )
 
     # Add a bar chart with the performance ratios
     fig.add_trace(
         go.Bar(
             x=list(ratios.values()),
             y=list(ratios.keys()),
-            orientation='h',
-            name='Performance Ratios'
+            orientation="h",
+            name="Performance Ratios",
         ),
-        row=1, col=2
+        row=1,
+        col=2,
     )
     # Add the benchmark line
     if has_benchmark:
         fig.add_trace(
             go.Scatter(
-                x=benchmark_df.index,
-                y=benchmark_df['benchmark'],
-                mode='lines',
-                name='Benchmark'
+                x=benchmark_df.index, y=benchmark_df["benchmark"], mode="lines", name="Benchmark"
             )
         )
 
         # Add performance metrics to the second column of the fig
-        ratios_benchmark = calculate_ratios(benchmark_df['benchmark'], balance_df['total'], timeframe)
+        ratios_benchmark = calculate_ratios(
+            benchmark_df["benchmark"], balance_df["total"], timeframe
+        )
         # Add a bar chart with the performance ratios for the benchmark to the second column of the fig
         fig.add_trace(
             go.Bar(
                 x=list(ratios_benchmark.values()),
                 y=list(ratios_benchmark.keys()),
-                orientation='h',
-                name='Benchmark Ratios'
+                orientation="h",
+                name="Benchmark Ratios",
             ),
-            row=1, col=2
+            row=1,
+            col=2,
         )
 
     # Update layout for the second column
-    fig.update_yaxes(title_text='Ratios', row=1, col=2)
-    fig.update_xaxes(title_text='Values', row=1, col=2)
+    fig.update_yaxes(title_text="Ratios", row=1, col=2)
+    fig.update_xaxes(title_text="Values", row=1, col=2)
     # Update layout to add titles and axis labels
-    fig.update_layout(
-        title='Account Balance Graph',
-        xaxis_title='Date',
-        yaxis_title='Value'
-    )
+    fig.update_layout(title="Account Balance Graph", xaxis_title="Date", yaxis_title="Value")
 
     return fig, errors
 
 
-def render_graph(dataframe, perfconfig, dp, trades, timeframe="1m", perfcheck_timeframe="15m", render_extras=False):
+def render_graph(
+    dataframe,
+    perfconfig,
+    dp,
+    trades,
+    timeframe="1m",
+    perfcheck_timeframe="15m",
+    render_extras=False,
+):
     print(dataframe, "GRAPHDATA")
-    fig, response = render_perfcheck_simple(dataframe, dp, perfconfig, trades, timeframe=timeframe,
-                                            perfcheck_timeframe=perfcheck_timeframe, show_locked=render_extras)
+    fig, response = render_perfcheck_simple(
+        dataframe,
+        dp,
+        perfconfig,
+        trades,
+        timeframe=timeframe,
+        perfcheck_timeframe=perfcheck_timeframe,
+        show_locked=render_extras,
+    )
     return fig
 
 
@@ -240,7 +279,7 @@ def create_folder_if_does_not_exist(path):
     return path
 
 
-class PerformanceMeter():
+class PerformanceMeter:
     wallets = None
     pair_profits = {}
     balance_list = None
@@ -250,14 +289,16 @@ class PerformanceMeter():
     perfcheck_folder = create_folder_if_does_not_exist(os.path.join(curdir, "perfchecks"))
 
     def __init__(self, perfcheck_config, bot_name, runmode, timeframe):
-        self.balance_list = pd.DataFrame(columns=["date", "total", "used", "free", "locked", "closed_total"])
+        self.balance_list = pd.DataFrame(
+            columns=["date", "total", "used", "free", "locked", "closed_total"]
+        )
         self.perfcheck_config = perfcheck_config  # self.config.get("perfcheck_config")
         self.perfcheck_config["name"] = bot_name
         self.timeframe = timeframe
         self.runmode = runmode
         if not "update_performance_minutes" in self.perfcheck_config:
             self.perfcheck_config["update_performance_minutes"] = 15
-        self.multiplier = self.perfcheck_config['update_performance_minutes']
+        self.multiplier = self.perfcheck_config["update_performance_minutes"]
         self.balance_file_setter()
 
     def iteration_at_order_filled(self, trade):
@@ -267,14 +308,15 @@ class PerformanceMeter():
 
     def balance_file_setter(self):
         if self.balance_filez is None:
-            self.balance_filez = os.path.join(self.perfcheck_folder,
-                                              self.perfcheck_config["name"] + f".{self.runmode}.pkl")
-            if self.runmode in ('hyperopt'):  # self.config['runmode'].value in ('hyperopt'):
+            self.balance_filez = os.path.join(
+                self.perfcheck_folder, self.perfcheck_config["name"] + f".{self.runmode}.pkl"
+            )
+            if self.runmode in ("hyperopt"):  # self.config['runmode'].value in ('hyperopt'):
                 # self.balance_list = pd.DataFrame(columns=["date", "total", "used", "free"] + self.metric_columns)
                 print("removing the balance list file", self.balance_list)
                 if os.path.exists(self.balance_filez):
                     os.remove(self.balance_filez)
-            if self.runmode in ('live', 'dry_run') and os.path.exists(self.balance_filez):
+            if self.runmode in ("live", "dry_run") and os.path.exists(self.balance_filez):
                 self.balance_list = pd.read_pickle(self.balance_filez)
                 print("loading again")
         return self.balance_filez
@@ -298,7 +340,7 @@ class PerformanceMeter():
 
     @lru_cache(maxsize=20)
     def rare_update_iteration(self, current_time_floored):
-        usdt_free = self.wallets.get_free('USDT')
+        usdt_free = self.wallets.get_free("USDT")
         usdt = usdt_free
         open_positions = self.wallets.get_all_positions()
 
@@ -310,13 +352,22 @@ class PerformanceMeter():
         for pair, i in open_positions.items():
             leveraged_margin += i.collateral * i.leverage
 
-        used_usdt = self.wallets.get_used('USDT')
-        usdt_total = self.wallets.get_total('USDT')
+        used_usdt = self.wallets.get_used("USDT")
+        usdt_total = self.wallets.get_total("USDT")
         new_element = pd.DataFrame(
-            [{'date': current_time_floored, 'total': usdt, 'free': usdt_free, 'used': used_usdt,
-              'closed_total': usdt_total, "locked": leveraged_margin}]).set_index("date")
+            [
+                {
+                    "date": current_time_floored,
+                    "total": usdt,
+                    "free": usdt_free,
+                    "used": used_usdt,
+                    "closed_total": usdt_total,
+                    "locked": leveraged_margin,
+                }
+            ]
+        ).set_index("date")
         self.balance_list = self.balance_list.combine_first(new_element)
-        if self.runmode not in ('hyperopt', "backtest"):
+        if self.runmode not in ("hyperopt", "backtest"):
             self.post_trade()
         return True
 
@@ -341,11 +392,13 @@ class PerformanceMeter():
         self.past_cursed_date = date_now
 
 
-class PerformanceMeteredStrategy():
+class PerformanceMeteredStrategy:
     curdir = os.path.join(os.getcwd(), "user_data")
     perfcheck_folder = create_folder_if_does_not_exist(os.path.join(curdir, "perfchecks"))
-    metric_columns = ['sharpe_ratio', 'calmar_ratio', 'omega_ratio', 'vwr_ratio']
-    balance_list = pd.DataFrame(columns=["date", "total", "used", "free", "locked", "closed_total"] + metric_columns)
+    metric_columns = ["sharpe_ratio", "calmar_ratio", "omega_ratio", "vwr_ratio"]
+    balance_list = pd.DataFrame(
+        columns=["date", "total", "used", "free", "locked", "closed_total"] + metric_columns
+    )
     balance_filez = None
     backtest_filez = None
     wins = 0
@@ -365,8 +418,8 @@ class PerformanceMeteredStrategy():
         Trade.get_open_trades()
 
         trade_filter = (
-                               Trade.is_open.is_(False) & (Trade.close_date >= start_date)
-                       ) | Trade.is_open.is_(True)
+            Trade.is_open.is_(False) & (Trade.close_date >= start_date)
+        ) | Trade.is_open.is_(True)
         trades: Sequence[Trade] = Trade.session.scalars(
             Trade.get_trades_query(trade_filter, include_orders=False).order_by(Trade.id)
         ).all()
@@ -426,7 +479,7 @@ class PerformanceMeteredStrategy():
             self.arbitrage_id = self.perfcheck_config["arbitrage-id"]
         if not "update_performance_minutes" in self.perfcheck_config:
             self.perfcheck_config["update_performance_minutes"] = 15
-        multiplier = self.perfcheck_config['update_performance_minutes']
+        multiplier = self.perfcheck_config["update_performance_minutes"]
 
         # if "ask_name" not in self.perfcheck_config or not self.perfcheck_config["ask_name"]:
         #     self.perfcheck_config["name"] = self.config.get("bot_name")
@@ -440,7 +493,9 @@ class PerformanceMeteredStrategy():
     def post_trade(self):
         self.balance_list.to_pickle(self.balance_filez)
         if self.arbitrage_id is not None:
-            blist = self.balance_list.copy()  #.rename(columns={"total": "total_" + self.arbitrage_id,
+            blist = (
+                self.balance_list.copy()
+            )  # .rename(columns={"total": "total_" + self.arbitrage_id,
             # "used": "used_" + self.arbitrage_id,
             # "free": "free_" + self.arbitrage_id})
             for sumr in self.arbitrage_sum:
@@ -448,10 +503,16 @@ class PerformanceMeteredStrategy():
                 while not os.path.exists(fpath):
                     print("waiting for balance file", fpath)
                     time.sleep(1)
-                df = pd.read_pickle(fpath).rename(columns={"total": "total_" + sumr,
-                                                           "used": "used_" + sumr,
-                                                           "free": "free_" + sumr})
-                blist = pd.merge(left_index=True, right_index=True, left=blist, right=df, how="left")
+                df = pd.read_pickle(fpath).rename(
+                    columns={
+                        "total": "total_" + sumr,
+                        "used": "used_" + sumr,
+                        "free": "free_" + sumr,
+                    }
+                )
+                blist = pd.merge(
+                    left_index=True, right_index=True, left=blist, right=df, how="left"
+                )
                 blist["total"] = blist["total"] + blist["total_" + sumr]
             self.balance_list = blist
         return
@@ -462,41 +523,55 @@ class PerformanceMeteredStrategy():
 
     def balance_file_setter(self):
         if self.balance_filez is None:
-            self.balance_filez = os.path.join(self.perfcheck_folder,
-                                              self.perfcheck_config["name"] + f".{self.runmode}.pkl")
-            if self.runmode in ('hyperopt'):  # self.config['runmode'].value in ('hyperopt'):
+            self.balance_filez = os.path.join(
+                self.perfcheck_folder, self.perfcheck_config["name"] + f".{self.runmode}.pkl"
+            )
+            if self.runmode in ("hyperopt"):  # self.config['runmode'].value in ('hyperopt'):
                 # self.balance_list = pd.DataFrame(columns=["date", "total", "used", "free"] + self.metric_columns)
                 print("removing the balance list file", self.balance_list)
                 if os.path.exists(self.balance_filez):
                     os.remove(self.balance_filez)
-            if self.runmode in ('live', 'dry_run') and os.path.exists(self.balance_filez):
+            if self.runmode in ("live", "dry_run") and os.path.exists(self.balance_filez):
                 self.balance_list = pd.read_pickle(self.balance_filez)
                 print("loading again")
         return self.balance_filez
 
     def load_informative_strategies(self, strategies):
         for strategy in strategies:
-            strategy_file_path = os.path.join(self.perfcheck_folder,
-                                              strategy if strategy.endswith('.pkl') else strategy + ".pkl")
+            strategy_file_path = os.path.join(
+                self.perfcheck_folder, strategy if strategy.endswith(".pkl") else strategy + ".pkl"
+            )
             self.informative_strategies[strategy] = pd.read_pickle(strategy_file_path)
 
     def render_difference(self, current_time: datetime):
         if pd.to_datetime(current_time) is not None:
-            date_now = pd.to_datetime(current_time).floor(f"{self.perfcheck_config['update_performance_minutes']}min")
+            date_now = pd.to_datetime(current_time).floor(
+                f"{self.perfcheck_config['update_performance_minutes']}min"
+            )
             informative_columns = []
             pair_prices = {}
             current_balance = self.calculate_total_profits()
             if current_balance is not None:
                 # self.last_checked = date_now
-                used_usdt = self.wallets.get_used('USDT')
-                usdt_free = self.wallets.get_free('USDT')
-                usdt_total = self.wallets.get_total('USDT')
+                used_usdt = self.wallets.get_used("USDT")
+                usdt_free = self.wallets.get_free("USDT")
+                usdt_total = self.wallets.get_total("USDT")
                 locked = self.calculate_current_overmargin()
                 new_element = pd.DataFrame(
-                    [{'date': date_now, 'total': current_balance, 'free': usdt_free, 'used': used_usdt,
-                      'closed_total': usdt_total, "locked": locked} | pair_prices])
+                    [
+                        {
+                            "date": date_now,
+                            "total": current_balance,
+                            "free": usdt_free,
+                            "used": used_usdt,
+                            "closed_total": usdt_total,
+                            "locked": locked,
+                        }
+                        | pair_prices
+                    ]
+                )
 
-                new_element.set_index('date', inplace=True)
+                new_element.set_index("date", inplace=True)
                 self.balance_list = self.balance_list.combine_first(new_element)
             # else:
             #     print("error - last balance is none", current_time)
@@ -504,14 +579,19 @@ class PerformanceMeteredStrategy():
             print("Error - current time is none", current_time)
 
     def custom_exit_callback(self, feed_pair, current_time, current_profit, trade, wallets):
-        date_now = pd.to_datetime(current_time).floor(f"{self.perfcheck_config['update_performance_minutes']}min")
+        date_now = pd.to_datetime(current_time).floor(
+            f"{self.perfcheck_config['update_performance_minutes']}min"
+        )
         self.initialized = True
         # print(self.initialized)
         self.wallets = wallets
-        date_now = pd.to_datetime(current_time).floor(f"{self.perfcheck_config['update_performance_minutes']}min")
+        date_now = pd.to_datetime(current_time).floor(
+            f"{self.perfcheck_config['update_performance_minutes']}min"
+        )
         if feed_pair not in self.last_checked_experimental:
             self.last_checked_experimental[feed_pair] = date_now - timedelta(
-                minutes=self.perfcheck_config['update_performance_minutes'])
+                minutes=self.perfcheck_config["update_performance_minutes"]
+            )
         if self.last_checked_experimental[feed_pair] < date_now:
             self.current_profits[feed_pair] = trade.stake_amount * (1 + current_profit)
             self.last_checked_experimental[feed_pair] = date_now
@@ -525,10 +605,20 @@ class PerformanceMeteredStrategy():
         return margin
 
     def try_repaint(self, current_time):
-        date_now = pd.to_datetime(current_time).floor(f"{self.perfcheck_config['update_performance_minutes']}min")
-        if self.perfcheck_config["default_exit_callback"] is None or self.perfcheck_config["default_exit_callback"]:
+        date_now = pd.to_datetime(current_time).floor(
+            f"{self.perfcheck_config['update_performance_minutes']}min"
+        )
+        if (
+            self.perfcheck_config["default_exit_callback"] is None
+            or self.perfcheck_config["default_exit_callback"]
+        ):
             self.rerender_current_closed(self.wallets.get_all_positions())
-        if all([last_checked == date_now for pair, last_checked in self.last_checked_experimental.items()]):
+        if all(
+            [
+                last_checked == date_now
+                for pair, last_checked in self.last_checked_experimental.items()
+            ]
+        ):
             self.render_difference(current_time)
 
             # print("not new enough", date_now, self.last_checked_experimental)
@@ -547,7 +637,7 @@ class PerformanceMeteredStrategy():
             del self.last_checked_experimental[pair]
 
     def calculate_total_profits(self):
-        usdt = self.wallets.get_free('USDT')
+        usdt = self.wallets.get_free("USDT")
 
         open_positions = self.wallets.get_all_positions()
         open_tickers = list(open_positions.keys())
@@ -578,7 +668,7 @@ class PerformanceMeteredStrategy():
             self.perfcheck_config["default_exit_callback"] = False
         self.try_remove_pair(pair)
         self.render_difference(current_time)
-        if self.runmode not in ('hyperopt', "backtest"):
+        if self.runmode not in ("hyperopt", "backtest"):
             self.post_trade()
 
     def print_performance_stat(self, last_row_init, date, informative_metrics):
@@ -599,7 +689,7 @@ class PerformanceMeteredStrategy():
         strategy_name = self.perfcheck_config["name"]
         vals = {strategy_name: {}}
         for key, value in last_row.items():
-            metric_name = key.split('-')
+            metric_name = key.split("-")
             is_informative = len(metric_name) > 1
             if is_informative:
                 if metric_name[1] not in vals:
@@ -612,13 +702,11 @@ class PerformanceMeteredStrategy():
         for k, v in vals.items():
             stri = ""
             for key, value in v.items():
-                is_metric = key.endswith('_ratio')
+                is_metric = key.endswith("_ratio")
                 name = key
                 color = "green" if value > 1 else "red"
-                color_metric = "purple" if is_metric else 'yellow'
+                color_metric = "purple" if is_metric else "yellow"
                 stri += f"[{color_metric}]{name}[/{color_metric}]: [{color}]{value}[/{color}]\n"
             layouts.append(Layout(Panel(stri, title=k, subtitle=date_str, height=30), name=k))
-        self.live_perfcheck.split_row(
-            *layouts
-        )
+        self.live_perfcheck.split_row(*layouts)
         self.live_console.update(self.live_perfcheck)
