@@ -9,7 +9,7 @@ from datetime import datetime, time, timedelta, timezone
 from math import isclose
 from threading import Lock
 from time import sleep
-from typing import Any
+from typing import Any, Optional
 
 from schedule import Scheduler
 
