@@ -61,7 +61,7 @@ websockets==14.0
 janus==1.1.0
 
 ast-comments==1.2.2
-packaging==24.1
+packaging
 polars
 httpx
 pytz
@@ -76,4 +76,3 @@ plotly
 kaleido
 historical_binance
 utils
-packaging==24.2
