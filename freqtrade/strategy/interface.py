@@ -8,7 +8,6 @@ from abc import ABC, abstractmethod
 from collections import OrderedDict
 from datetime import datetime, timedelta, timezone
 from math import isinf, isnan
-from typing import Optional, Union
 
 from pandas import DataFrame
 
@@ -77,7 +76,7 @@ class IStrategy(ABC, HyperStrategyMixin):
 
     # trailing stoploss
     trailing_stop: bool = False
-    trailing_stop_positive: Optional[float] = None
+    trailing_stop_positive: float | None = None
     trailing_stop_positive_offset: float = 0.0
     trailing_only_offset_is_reached = False
     use_custom_stoploss: bool = False
@@ -131,7 +130,7 @@ class IStrategy(ABC, HyperStrategyMixin):
     # the dataprovider (dp) (access to other candles, historic data, ...)
     # and wallets - access to the current balance.
     dp: DataProvider
-    wallets: Optional[Wallets] = None
+    wallets: Wallets | None = None
     # Filled from configuration
     stake_currency: str
     # container variable for strategy source code
@@ -357,7 +356,7 @@ class IStrategy(ABC, HyperStrategyMixin):
         rate: float,
         time_in_force: str,
         current_time: datetime,
-        entry_tag: Optional[str],
+        entry_tag: str | None,
         side: str,
         **kwargs,
     ) -> bool:
@@ -446,7 +445,7 @@ class IStrategy(ABC, HyperStrategyMixin):
         current_profit: float,
         after_fill: bool,
         **kwargs,
-    ) -> Optional[float]:
+    ) -> float | None:
         """
         Custom stoploss logic, returning the new distance relative to current_rate (as ratio).
         e.g. returning -0.05 would create a stoploss 5% below current_rate.
@@ -471,10 +470,10 @@ class IStrategy(ABC, HyperStrategyMixin):
     def custom_entry_price(
         self,
         pair: str,
-        trade: Optional[Trade],
+        trade: Trade | None,
         current_time: datetime,
         proposed_rate: float,
-        entry_tag: Optional[str],
+        entry_tag: str | None,
         side: str,
         **kwargs,
     ) -> float:
@@ -503,7 +502,7 @@ class IStrategy(ABC, HyperStrategyMixin):
         current_time: datetime,
         proposed_rate: float,
         current_profit: float,
-        exit_tag: Optional[str],
+        exit_tag: str | None,
         **kwargs,
     ) -> float:
         """
@@ -532,7 +531,7 @@ class IStrategy(ABC, HyperStrategyMixin):
         current_rate: float,
         current_profit: float,
         **kwargs,
-    ) -> Optional[Union[str, bool]]:
+    ) -> str | bool | None:
         """
         DEPRECATED - please use custom_exit instead.
         Custom exit signal logic indicating that specified position should be sold. Returning a
@@ -564,7 +563,7 @@ class IStrategy(ABC, HyperStrategyMixin):
         current_rate: float,
         current_profit: float,
         **kwargs,
-    ) -> Optional[Union[str, bool]]:
+    ) -> str | bool | None:
         """
         Custom exit signal logic indicating that specified position should be sold. Returning a
         string or True from this method is equal to setting exit signal on a candle at specified
@@ -593,10 +592,10 @@ class IStrategy(ABC, HyperStrategyMixin):
         current_time: datetime,
         current_rate: float,
         proposed_stake: float,
-        min_stake: Optional[float],
+        min_stake: float | None,
         max_stake: float,
         leverage: float,
-        entry_tag: Optional[str],
+        entry_tag: str | None,
         side: str,
         **kwargs,
     ) -> float:
@@ -622,14 +621,14 @@ class IStrategy(ABC, HyperStrategyMixin):
         current_time: datetime,
         current_rate: float,
         current_profit: float,
-        min_stake: Optional[float],
+        min_stake: float | None,
         max_stake: float,
         current_entry_rate: float,
         current_exit_rate: float,
         current_entry_profit: float,
         current_exit_profit: float,
         **kwargs,
-    ) -> Union[Optional[float], tuple[Optional[float], Optional[str]]]:
+    ) -> float | None | tuple[float | None, str | None]:
         """
         Custom trade adjustment logic, returning the stake amount that a trade should be
         increased or decreased.
@@ -662,12 +661,12 @@ class IStrategy(ABC, HyperStrategyMixin):
     def adjust_entry_price(
         self,
         trade: Trade,
-        order: Optional[Order],
+        order: Order | None,
         pair: str,
         current_time: datetime,
         proposed_rate: float,
         current_order_rate: float,
-        entry_tag: Optional[str],
+        entry_tag: str | None,
         side: str,
         **kwargs,
     ) -> float:
@@ -703,7 +702,7 @@ class IStrategy(ABC, HyperStrategyMixin):
         current_rate: float,
         proposed_leverage: float,
         max_leverage: float,
-        entry_tag: Optional[str],
+        entry_tag: str | None,
         side: str,
         **kwargs,
     ) -> float:
@@ -734,7 +733,7 @@ class IStrategy(ABC, HyperStrategyMixin):
         """
         return []
 
-    def version(self) -> Optional[str]:
+    def version(self) -> str | None:
         """
         Returns version of the strategy.
         """
@@ -745,7 +744,7 @@ class IStrategy(ABC, HyperStrategyMixin):
         pair: str,
         df: DataFrame,
         tf: str,
-        informative: Optional[DataFrame] = None,
+        informative: DataFrame | None = None,
         set_generalized_indicators: bool = False,
     ) -> DataFrame:
         """
@@ -875,14 +874,14 @@ class IStrategy(ABC, HyperStrategyMixin):
         current_time: datetime,
         current_rate: float,
         current_profit: float,
-        min_stake: Optional[float],
+        min_stake: float | None,
         max_stake: float,
         current_entry_rate: float,
         current_exit_rate: float,
         current_entry_profit: float,
         current_exit_profit: float,
         **kwargs,
-    ) -> tuple[Optional[float], str]:
+    ) -> tuple[float | None, str]:
         """
         wrapper around adjust_trade_position to handle the return value
         """
@@ -982,7 +981,7 @@ class IStrategy(ABC, HyperStrategyMixin):
         return self.__class__.__name__
 
     def lock_pair(
-        self, pair: str, until: datetime, reason: Optional[str] = None, side: str = "*"
+        self, pair: str, until: datetime, reason: str | None = None, side: str = "*"
     ) -> None:
         """
         Locks pair until a given timestamp happens.
@@ -1016,7 +1015,7 @@ class IStrategy(ABC, HyperStrategyMixin):
         PairLocks.unlock_reason(reason, datetime.now(timezone.utc))
 
     def is_pair_locked(
-        self, pair: str, *, candle_date: Optional[datetime] = None, side: str = "*"
+        self, pair: str, *, candle_date: datetime | None = None, side: str = "*"
     ) -> bool:
         """
         Checks if a pair is currently locked
@@ -1152,7 +1151,7 @@ class IStrategy(ABC, HyperStrategyMixin):
         pair: str,
         timeframe: str,
         dataframe: DataFrame,
-    ) -> tuple[Optional[DataFrame], Optional[datetime]]:
+    ) -> tuple[DataFrame | None, datetime | None]:
         """
         Calculates current signal based based on the entry order or exit order
         columns of the dataframe.
@@ -1184,8 +1183,8 @@ class IStrategy(ABC, HyperStrategyMixin):
         return latest, latest_date
 
     def get_exit_signal(
-        self, pair: str, timeframe: str, dataframe: DataFrame, is_short: Optional[bool] = None
-    ) -> tuple[bool, bool, Optional[str]]:
+        self, pair: str, timeframe: str, dataframe: DataFrame, is_short: bool | None = None
+    ) -> tuple[bool, bool, str | None]:
         """
         Calculates current exit signal based based on the dataframe
         columns of the dataframe.
@@ -1221,7 +1220,7 @@ class IStrategy(ABC, HyperStrategyMixin):
         pair: str,
         timeframe: str,
         dataframe: DataFrame,
-    ) -> tuple[Optional[SignalDirection], Optional[str]]:
+    ) -> tuple[SignalDirection | None, str | None]:
         """
         Calculates current entry signal based based on the dataframe signals
         columns of the dataframe.
@@ -1240,8 +1239,8 @@ class IStrategy(ABC, HyperStrategyMixin):
         enter_short = latest.get(SignalType.ENTER_SHORT.value, 0) == 1
         exit_short = latest.get(SignalType.EXIT_SHORT.value, 0) == 1
 
-        enter_signal: Optional[SignalDirection] = None
-        enter_tag: Optional[str] = None
+        enter_signal: SignalDirection | None = None
+        enter_tag: str | None = None
         if enter_long == 1 and not any([exit_long, enter_short]):
             enter_signal = SignalDirection.LONG
             enter_tag = latest.get(SignalTagType.ENTER_TAG.value, None)
@@ -1289,8 +1288,8 @@ class IStrategy(ABC, HyperStrategyMixin):
         *,
         enter: bool,
         exit_: bool,
-        low: Optional[float] = None,
-        high: Optional[float] = None,
+        low: float | None = None,
+        high: float | None = None,
         force_stoploss: float = 0,
     ) -> list[ExitCheckTuple]:
         """
@@ -1396,8 +1395,8 @@ class IStrategy(ABC, HyperStrategyMixin):
         current_time: datetime,
         current_profit: float,
         force_stoploss: float,
-        low: Optional[float] = None,
-        high: Optional[float] = None,
+        low: float | None = None,
+        high: float | None = None,
         after_fill: bool = False,
     ) -> None:
         """
@@ -1470,8 +1469,8 @@ class IStrategy(ABC, HyperStrategyMixin):
         current_time: datetime,
         current_profit: float,
         force_stoploss: float,
-        low: Optional[float] = None,
-        high: Optional[float] = None,
+        low: float | None = None,
+        high: float | None = None,
     ) -> ExitCheckTuple:
         """
         Based on current profit of the trade and configured (trailing) stoploss,
@@ -1524,7 +1523,7 @@ class IStrategy(ABC, HyperStrategyMixin):
 
         return ExitCheckTuple(exit_type=ExitType.NONE)
 
-    def min_roi_reached_entry(self, trade_dur: int, pair: str) -> tuple[Optional[int], Optional[float]]:
+    def min_roi_reached_entry(self, trade_dur: int, pair: str) -> tuple[int | None, float | None]:
         """
         Based on trade duration defines the ROI entry that may have been reached.
         :param trade_dur: trade duration in minutes

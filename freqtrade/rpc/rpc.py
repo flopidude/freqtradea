@@ -7,7 +7,7 @@ from abc import abstractmethod
 from collections.abc import Generator, Sequence
 from datetime import date, datetime, timedelta, timezone
 from math import isnan
-from typing import Any, Optional, Union
+from typing import Any
 
 import psutil
 from dateutil.relativedelta import relativedelta
@@ -98,7 +98,7 @@ class RPC:
     """
 
     # Bind _fiat_converter if needed
-    _fiat_converter: Optional[CryptoToFiatConverter] = None
+    _fiat_converter: CryptoToFiatConverter | None = None
 
     def __init__(self, freqtrade) -> None:
         """
@@ -113,7 +113,7 @@ class RPC:
 
     @staticmethod
     def _rpc_show_config(
-        config, botstate: Union[State, str], strategy_version: Optional[str] = None
+        config, botstate: State | str, strategy_version: str | None = None
     ) -> dict[str, Any]:
         """
         Return a dict of config options.
@@ -169,7 +169,7 @@ class RPC:
         }
         return val
 
-    def _rpc_trade_status(self, trade_ids: Optional[list[int]] = None) -> list[dict[str, Any]]:
+    def _rpc_trade_status(self, trade_ids: list[int] | None = None) -> list[dict[str, Any]]:
         """
         Below follows the RPC backend it is prefixed with rpc_ to raise awareness that it is
         a remotely exposed function
@@ -185,11 +185,11 @@ class RPC:
         else:
             results = []
             for trade in trades:
-                current_profit_fiat: Optional[float] = None
-                total_profit_fiat: Optional[float] = None
+                current_profit_fiat: float | None = None
+                total_profit_fiat: float | None = None
 
                 # prepare open orders details
-                oo_details: Optional[str] = ""
+                oo_details: str | None = ""
                 oo_details_lst = [
                     f"({oo.order_type} {oo.side} rem={oo.safe_remaining:.8f})"
                     for oo in trade.open_orders
@@ -198,7 +198,7 @@ class RPC:
                 oo_details = ", ".join(oo_details_lst)
 
                 total_profit_abs = 0.0
-                total_profit_ratio: Optional[float] = None
+                total_profit_ratio: float | None = None
                 # calculate profit and send message to user
                 if trade.is_open:
                     try:
@@ -488,7 +488,7 @@ class RPC:
         return {"exit_reasons": exit_reasons, "durations": durations}
 
     def _rpc_trade_statistics(
-        self, stake_currency: str, fiat_display_currency: str, start_date: Optional[datetime] = None
+        self, stake_currency: str, fiat_display_currency: str, start_date: datetime | None = None
     ) -> dict[str, Any]:
         """Returns cumulative profit statistics"""
 
@@ -683,7 +683,7 @@ class RPC:
             est_bot_stake = amount
         else:
             pair = self._freqtrade.exchange.get_valid_pair_combination(coin, stake_currency)
-            rate: Optional[float] = tickers.get(pair, {}).get("last", None)
+            rate: float | None = tickers.get(pair, {}).get("last", None)
             if rate:
                 if pair.startswith(stake_currency) and not pair.endswith(stake_currency):
                     rate = 1.0 / rate
@@ -852,7 +852,7 @@ class RPC:
         return {"status": "Reloaded from orders from exchange"}
 
     def __exec_force_exit(
-        self, trade: Trade, ordertype: Optional[str], amount: Optional[float] = None
+        self, trade: Trade, ordertype: str | None, amount: float | None = None
     ) -> bool:
         # Check if there is there are open orders
         trade_entry_cancelation_registry = []
@@ -883,7 +883,7 @@ class RPC:
             order_type = ordertype or self._freqtrade.strategy.order_types.get(
                 "force_exit", self._freqtrade.strategy.order_types["exit"]
             )
-            sub_amount: Optional[float] = None
+            sub_amount: float | None = None
             if amount and amount < trade.amount:
                 # Partial exit ...
                 min_exit_stake = self._freqtrade.exchange.get_min_pair_stake_amount(
@@ -902,7 +902,7 @@ class RPC:
         return False
 
     def _rpc_force_exit(
-        self, trade_id: str, ordertype: Optional[str] = None, *, amount: Optional[float] = None
+        self, trade_id: str, ordertype: str | None = None, *, amount: float | None = None
     ) -> dict[str, str]:
         """
         Handler for forceexit <id>.
@@ -961,14 +961,14 @@ class RPC:
     def _rpc_force_entry(
         self,
         pair: str,
-        price: Optional[float],
+        price: float | None,
         *,
-        order_type: Optional[str] = None,
+        order_type: str | None = None,
         order_side: SignalDirection = SignalDirection.LONG,
-        stake_amount: Optional[float] = None,
-        enter_tag: Optional[str] = "force_entry",
-        leverage: Optional[float] = None,
-    ) -> Optional[Trade]:
+        stake_amount: float | None = None,
+        enter_tag: str | None = "force_entry",
+        leverage: float | None = None,
+    ) -> Trade | None:
         """
         Handler for forcebuy <asset> <price>
         Buys a pair trade at the given or current price
@@ -978,7 +978,7 @@ class RPC:
         # check if valid pair
 
         # check if pair already has an open pair
-        trade: Optional[Trade] = Trade.get_trades(
+        trade: Trade | None = Trade.get_trades(
             [Trade.is_open.is_(True), Trade.pair == pair]
         ).first()
         is_short = order_side == SignalDirection.SHORT
@@ -1053,7 +1053,7 @@ class RPC:
                 )
             Trade.commit()
 
-    def _rpc_delete(self, trade_id: int) -> dict[str, Union[str, int]]:
+    def _rpc_delete(self, trade_id: int) -> dict[str, str | int]:
         """
         Handler for delete <id>.
         Delete the given trade and close eventually existing open orders.
@@ -1094,7 +1094,7 @@ class RPC:
                 "cancel_order_count": c_count,
             }
 
-    def _rpc_list_custom_data(self, trade_id: int, key: Optional[str]) -> list[dict[str, Any]]:
+    def _rpc_list_custom_data(self, trade_id: int, key: str | None) -> list[dict[str, Any]]:
         # Query for trade
         trade = Trade.get_trades(trade_filter=[Trade.id == trade_id]).first()
         if trade is None:
@@ -1129,21 +1129,21 @@ class RPC:
 
         return pair_rates
 
-    def _rpc_enter_tag_performance(self, pair: Optional[str]) -> list[dict[str, Any]]:
+    def _rpc_enter_tag_performance(self, pair: str | None) -> list[dict[str, Any]]:
         """
         Handler for buy tag performance.
         Shows a performance statistic from finished trades
         """
         return Trade.get_enter_tag_performance(pair)
 
-    def _rpc_exit_reason_performance(self, pair: Optional[str]) -> list[dict[str, Any]]:
+    def _rpc_exit_reason_performance(self, pair: str | None) -> list[dict[str, Any]]:
         """
         Handler for exit reason performance.
         Shows a performance statistic from finished trades
         """
         return Trade.get_exit_reason_performance(pair)
 
-    def _rpc_mix_tag_performance(self, pair: Optional[str]) -> list[dict[str, Any]]:
+    def _rpc_mix_tag_performance(self, pair: str | None) -> list[dict[str, Any]]:
         """
         Handler for mix tag (enter_tag + exit_reason) performance.
         Shows a performance statistic from finished trades
@@ -1184,7 +1184,7 @@ class RPC:
         return {"lock_count": len(locks), "locks": [lock.to_json() for lock in locks]}
 
     def _rpc_delete_lock(
-        self, lockid: Optional[int] = None, pair: Optional[str] = None
+        self, lockid: int | None = None, pair: str | None = None
     ) -> dict[str, Any]:
         """Delete specific lock(s)"""
         locks: Sequence[PairLock] = []
@@ -1202,9 +1202,7 @@ class RPC:
 
         return self._rpc_locks()
 
-    def _rpc_add_lock(
-        self, pair: str, until: datetime, reason: Optional[str], side: str
-    ) -> PairLock:
+    def _rpc_add_lock(self, pair: str, until: datetime, reason: str | None, side: str) -> PairLock:
         lock = PairLocks.lock_pair(
             pair=pair,
             until=until,
@@ -1234,7 +1232,7 @@ class RPC:
         resp["errors"] = errors
         return resp
 
-    def _rpc_blacklist(self, add: Optional[list[str]] = None) -> dict:
+    def _rpc_blacklist(self, add: list[str] | None = None) -> dict:
         """Returns the currently active blacklist"""
         errors = {}
         if add:
@@ -1259,7 +1257,7 @@ class RPC:
         return res
 
     @staticmethod
-    def _rpc_get_logs(limit: Optional[int]) -> dict[str, Any]:
+    def _rpc_get_logs(limit: int | None) -> dict[str, Any]:
         """Returns the last X logs"""
         if limit:
             buffer = bufferHandler.buffer[-limit:]
@@ -1296,7 +1294,7 @@ class RPC:
         timeframe: str,
         dataframe: DataFrame,
         last_analyzed: datetime,
-        selected_cols: Optional[list[str]],
+        selected_cols: list[str] | None,
     ) -> dict[str, Any]:
         has_content = len(dataframe) != 0
         dataframe_columns = list(dataframe.columns)
@@ -1365,7 +1363,7 @@ class RPC:
         return res
 
     def _rpc_analysed_dataframe(
-        self, pair: str, timeframe: str, limit: Optional[int], selected_cols: Optional[list[str]]
+        self, pair: str, timeframe: str, limit: int | None, selected_cols: list[str] | None
     ) -> dict[str, Any]:
         """Analyzed dataframe in Dict form"""
 
@@ -1375,7 +1373,7 @@ class RPC:
         )
 
     def __rpc_analysed_dataframe_raw(
-        self, pair: str, timeframe: str, limit: Optional[int]
+        self, pair: str, timeframe: str, limit: int | None
     ) -> tuple[DataFrame, datetime]:
         """
         Get the dataframe and last analyze from the dataprovider
@@ -1393,7 +1391,7 @@ class RPC:
         return _data, last_analyzed
 
     def _ws_all_analysed_dataframes(
-        self, pairlist: list[str], limit: Optional[int]
+        self, pairlist: list[str], limit: int | None
     ) -> Generator[dict[str, Any], None, None]:
         """
         Get the analysed dataframes of each pair in the pairlist.
@@ -1413,7 +1411,7 @@ class RPC:
 
             yield {"key": (pair, timeframe, candle_type), "df": dataframe, "la": last_analyzed}
 
-    def _ws_request_analyzed_df(self, limit: Optional[int] = None, pair: Optional[str] = None):
+    def _ws_request_analyzed_df(self, limit: int | None = None, pair: str | None = None):
         """Historical Analyzed Dataframes for WebSocket"""
         pairlist = [pair] if pair else self._freqtrade.active_pair_whitelist
 
@@ -1425,7 +1423,7 @@ class RPC:
 
     @staticmethod
     def _rpc_analysed_history_full(
-        config: Config, pair: str, timeframe: str, exchange, selected_cols: Optional[list[str]]
+        config: Config, pair: str, timeframe: str, exchange, selected_cols: list[str] | None
     ) -> dict[str, Any]:
         timerange_parsed = TimeRange.parse_timerange(config.get("timerange"))
 
@@ -1492,9 +1490,9 @@ class RPC:
             "ram_pct": psutil.virtual_memory().percent,
         }
 
-    def health(self) -> dict[str, Optional[Union[str, int]]]:
+    def health(self) -> dict[str, str | int | None]:
         last_p = self._freqtrade.last_process
-        res: dict[str, Union[None, str, int]] = {
+        res: dict[str, None | str | int] = {
             "last_process": None,
             "last_process_loc": None,
             "last_process_ts": None,
