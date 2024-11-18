@@ -1523,7 +1523,7 @@ class IStrategy(ABC, HyperStrategyMixin):
 
         return ExitCheckTuple(exit_type=ExitType.NONE)
 
-    def min_roi_reached_entry(self, trade_dur: int, pair: str) -> tuple[int | None, float | None]:
+    def min_roi_reached_entry(self, trade_dur: int) -> tuple[int | None, float | None]:
         """
         Based on trade duration defines the ROI entry that may have been reached.
         :param trade_dur: trade duration in minutes
@@ -1545,7 +1545,7 @@ class IStrategy(ABC, HyperStrategyMixin):
         """
         # Check if time matches and current rate is above threshold
         trade_dur = int((current_time.timestamp() - trade.open_date_utc.timestamp()) // 60)
-        _, roi = self.min_roi_reached_entry(trade_dur, trade.pair)
+        _, roi = self.min_roi_reached_entry(trade_dur)
         if roi is None:
             return False
         else:
