@@ -546,7 +546,7 @@ class Backtesting:
         is_short = trade.is_short or False
         leverage = trade.leverage or 1.0
         side_1 = -1 if is_short else 1
-        roi_entry, roi = self.strategy.min_roi_reached_entry(trade_dur)
+        roi_entry, roi = self.strategy.min_roi_reached_entry(trade_dur, trade.pair)
         if roi is not None and roi_entry is not None:
             if roi == -1 and roi_entry % self.timeframe_min == 0:
                 # When force_exiting with ROI=-1, the roi time will always be equal to trade_dur.
