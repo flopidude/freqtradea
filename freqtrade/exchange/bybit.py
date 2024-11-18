@@ -65,10 +65,10 @@ class Bybit(Exchange):
 
     _supported_trading_mode_margin_pairs: list[tuple[TradingMode, MarginMode]] = [
         # TradingMode.SPOT always supported and not required in this list
-        (
-            TradingMode.FUTURES,
-            MarginMode.CROSS,
-        ),  # TODO THIS LINE WAS UNCOMMETED IN A BRINK OF RETARDATION
+        # (
+        #     TradingMode.FUTURES,
+        #     MarginMode.CROSS,
+        # )
         (TradingMode.FUTURES, MarginMode.ISOLATED),
     ]
 
@@ -200,7 +200,7 @@ class Bybit(Exchange):
                 return open_rate * (1 - initial_margin_rate + mm_ratio)
 
         else:
-            return None  # TODO THIS LINE WAS ADDED IN IN A BRINK OF RETARDATION
+            # return None  # TODO THIS LINE WAS ADDED IN IN A BRINK OF RETARDATION
             raise OperationalException(
                 "Freqtrade only supports isolated futures for leverage trading"
             )

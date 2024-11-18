@@ -9,7 +9,7 @@ from datetime import datetime, time, timedelta, timezone
 from math import isclose
 from threading import Lock
 from time import sleep
-from typing import Any, Optional
+from typing import Any
 
 from schedule import Scheduler
 
@@ -203,23 +203,23 @@ class FreqtradeBot(LoggingMixin):
     def force_entry(
         self,
         pair: str,
-        price: Optional[float],
+        price: float | None,
         *,
-        order_type: Optional[str] = None,
+        order_type: str | None = None,
         is_short: bool,
-        stake_amount: Optional[float] = None,
-        enter_tag: Optional[str] = "force_entry",
-        leverage: Optional[float] = None,
+        stake_amount: float | None = None,
+        enter_tag: str | None = "force_entry",
+        leverage: float | None = None,
         enter_only: bool = True,
         grab_pair_dataframe: bool = True,
-    ) -> Optional[Trade]:
+    ) -> Trade | None:
         """
         Handler for forcebuy <asset> <price>
         Buys a pair trade at the given or current price
         """
         if grab_pair_dataframe:
             self.refresh_new_pair(pair)
-        trade: Optional[Trade] = Trade.get_trades(
+        trade: Trade | None = Trade.get_trades(
             [Trade.is_open.is_(True), Trade.pair == pair]
         ).first()
         if trade:
