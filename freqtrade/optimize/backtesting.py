@@ -1597,6 +1597,11 @@ class Backtesting:
             if blist.shape[0] > 0:
                 blist[["total", "free", "used", "closed_total"]].ffill(inplace=True)
                 print(blist, "blist")
+                if hasattr(self.strategy, "backtest_name"):
+                    custom_attribute = getattr(self.strategy, "backtest_name")()
+                else:
+                    custom_attribute = ""
+
                 perfcheck_timeframe = (
                     self.dataprovider.performance_metered_strategy.perfcheck_config[
                         "update_performance_minutes"
@@ -1615,6 +1620,7 @@ class Backtesting:
                     graph,
                     self.dataprovider.performance_metered_strategy.balance_filez,
                     image_only=False,
+                    custom_text=custom_attribute
                 )
 
         backtest_end_time = datetime.now(timezone.utc)

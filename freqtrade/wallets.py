@@ -161,11 +161,13 @@ class Wallets:
         positions = self._exchange.fetch_positions()
         _parsed_positions = {}
         for position in positions:
+            print(position)
             symbol = position["symbol"]
-            if position["side"] is None or position["collateral"] == 0.0:
+            if position["side"] is None or (position["collateral"] == 0.0 and self._config.get("margin_mode") != "cross"):
                 # Position is not open ...
                 continue
             size = self._exchange._contracts_to_amount(symbol, position["contracts"])
+            print(size)
             collateral = safe_value_fallback(position, "collateral", "initialMargin", 0.0)
             leverage = position.get("leverage")
             _parsed_positions[symbol] = PositionWallet(
