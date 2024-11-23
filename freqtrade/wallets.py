@@ -163,7 +163,9 @@ class Wallets:
         for position in positions:
             print(position)
             symbol = position["symbol"]
-            if position["side"] is None or (position["collateral"] == 0.0 and self._config.get("margin_mode") != "cross"):
+            if position["side"] is None or (
+                position["collateral"] == 0.0 and self._config.get("margin_mode") != "cross"
+            ):
                 # Position is not open ...
                 continue
             size = self._exchange._contracts_to_amount(symbol, position["contracts"])

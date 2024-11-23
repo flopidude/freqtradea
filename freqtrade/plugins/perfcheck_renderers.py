@@ -260,8 +260,10 @@ def render_graph(
     return fig
 
 
-def return_results(fig, file_name, resolution_x=1200, resolution_y=800, image_only=False, custom_text=""):
-    custom_text += "_"+datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+def return_results(
+    fig, file_name, resolution_x=1200, resolution_y=800, image_only=False, custom_text=""
+):
+    custom_text += "_" + datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     if image_only:
         image_file = f"{file_name.replace('.pkl', '')}_{custom_text}_graph.png"
         fig.write_image(image_file, format="png", width=resolution_x, height=resolution_y)

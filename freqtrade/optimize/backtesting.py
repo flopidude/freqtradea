@@ -1620,7 +1620,7 @@ class Backtesting:
                     graph,
                     self.dataprovider.performance_metered_strategy.balance_filez,
                     image_only=False,
-                    custom_text=custom_attribute
+                    custom_text=custom_attribute,
                 )
 
         backtest_end_time = datetime.now(timezone.utc)
