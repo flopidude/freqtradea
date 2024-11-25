@@ -134,6 +134,7 @@ def render_perfcheck_simple(
     errors = {}
     first_date = balance_df.index[0]
     benchmark_df = None
+    balance_df_2am = balance_df[balance_df.index.hour == 2].copy()
     try:
         if trades is None or trades.shape[0] == 0:
             benchmark_df = generate_profit_single_pair(
@@ -170,6 +171,14 @@ def render_perfcheck_simple(
             mode="lines",
             name="Account Balance (Closed)",
         )
+    )
+    fig.add_trace(
+        go.Scatter(
+            x=balance_df_2am.index,
+            y=balance_df_2am["total"],
+            mode="lines+markers",
+            name="Account Balance (2 AM UTC)",
+        ),
     )
     if show_locked:
         fig.add_trace(
