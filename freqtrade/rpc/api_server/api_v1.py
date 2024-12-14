@@ -83,7 +83,8 @@ logger = logging.getLogger(__name__)
 # 2.34: new entries/exits/mix_tags endpoints
 # 2.35: pair_candles and pair_history endpoints as Post variant
 # 2.40: Add hyperopt-loss endpoint
-API_VERSION = 2.40
+# 2.41: Add download-data endpoint
+API_VERSION = 2.41
 
 # Public API, requires no auth.
 router_public = APIRouter()
@@ -356,6 +357,7 @@ def pair_history(
     config = deepcopy(config)
     config.update(
         {
+            "timeframe": timeframe,
             "strategy": strategy,
             "timerange": timerange,
             "freqaimodel": freqaimodel if freqaimodel else config.get("freqaimodel"),
@@ -376,6 +378,7 @@ def pair_history_filtered(
     config = deepcopy(config)
     config.update(
         {
+            "timeframe": payload.timeframe,
             "strategy": payload.strategy,
             "timerange": payload.timerange,
             "freqaimodel": (
