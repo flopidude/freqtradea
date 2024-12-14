@@ -134,7 +134,7 @@ def render_perfcheck_simple(
     errors = {}
     first_date = balance_df.index[0]
     benchmark_df = None
-    balance_df_2am = balance_df[balance_df.index.hour == 2].copy()
+    balance_df_2am = balance_df[(balance_df.index.hour == 2) & (balance_df.index.minute==0)].copy()
     try:
         if trades is None or trades.shape[0] == 0:
             benchmark_df = generate_profit_single_pair(

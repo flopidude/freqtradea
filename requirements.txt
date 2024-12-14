@@ -76,3 +76,5 @@ plotly
 kaleido
 historical_binance
 utils
+ray
+netifaces

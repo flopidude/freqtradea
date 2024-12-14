@@ -164,7 +164,7 @@ class Wallets:
             print(position)
             symbol = position["symbol"]
             if position["side"] is None or (
-                position["collateral"] == 0.0 and self._config.get("margin_mode") != "cross"
+                position["collateral"] == 0.0 and self._config.get("margin_mode", "isolated") != "cross"
             ):
                 # Position is not open ...
                 continue

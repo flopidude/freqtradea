@@ -200,7 +200,7 @@ class Bybit(Exchange):
                 return open_rate * (1 - initial_margin_rate + mm_ratio)
 
         else:
-            logger.warning("USING CROSS FUTURES, PROCEED WITH CAUTION")
+            # logger.warning("USING CROSS FUTURES, PROCEED WITH CAUTION")
             return None  # TODO THIS LINE WAS ADDED IN IN A BRINK OF RETARDATION
 
             raise OperationalException(
