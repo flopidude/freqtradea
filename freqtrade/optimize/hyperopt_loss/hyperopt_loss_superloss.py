@@ -28,7 +28,7 @@ class Supreme(IHyperOptLoss):
     @staticmethod
     def hyperopt_loss_function(results: DataFrame, trade_count: int,
                                min_date: datetime, max_date: datetime,
-                               config: Config, *args, **kwargs) -> float:
+                               config: Config, processed, backtest_stats, *args, **kwargs) -> float:
         """
         Objective function, returns smaller number for more optimal results.
 
@@ -36,9 +36,9 @@ class Supreme(IHyperOptLoss):
         """
         performance_minutes = config['perfcheck_config'].get('update_performance_minutes', 15)
         print(performance_minutes, "minutes per interval")
-        print(results)
+        print(backtest_stats["performance"], "is the result.")
         try: # Should have at least three hours worth of changing balance, not too much to ask for
-            ratios = calculate_ratios(results["performance"]["total"], timeframe=f"{performance_minutes}m")
+            ratios = calculate_ratios(backtest_stats["performance"]["total"], timeframe=f"{performance_minutes}m")
         except Exception as e:
             logger.exception(f"{e} while calculating ratios for hyperopt")
             ratios = {"sharpe_ratio": 0, "calmar_ratio": 0}

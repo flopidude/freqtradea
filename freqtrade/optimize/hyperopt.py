@@ -392,11 +392,15 @@ class Hyperopt:
         bt_results = self.backtesting.backtest(
             processed=processed, start_date=self.min_date, end_date=self.max_date
         )
+        logger.error("ERERERER")
+        print("results",bt_results['performance'])
+
         backtest_end_time = datetime.now(timezone.utc)
         bt_results.update(
             {
                 "backtest_start_time": int(backtest_start_time.timestamp()),
                 "backtest_end_time": int(backtest_end_time.timestamp()),
+
             }
         )
 
@@ -423,6 +427,8 @@ class Hyperopt:
             market_change=self.market_change,
             is_hyperopt=True,
         )
+
+        # strat_stats["performance"] = backtesting_results["performance"]
         results_explanation = HyperoptTools.format_results_explanation_string(
             strat_stats, self.config["stake_currency"]
         )

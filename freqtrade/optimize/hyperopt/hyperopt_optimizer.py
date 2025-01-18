@@ -317,6 +317,10 @@ class HyperOptimizer:
             }
         )
 
+        # logger.error("ERERERER")
+        # print("results",bt_results['performance'])
+        #THIS IS THE CORRECT ONE
+
         return self._get_results_dict(
             bt_results, self.min_date, self.max_date, params_dict, processed=processed
         )
@@ -343,6 +347,7 @@ class HyperOptimizer:
         results_explanation = HyperoptTools.format_results_explanation_string(
             strat_stats, self.config["stake_currency"]
         )
+        strat_stats["performance"] = backtesting_results["performance"]
 
         not_optimized = self.backtesting.strategy.get_no_optimize_params()
         not_optimized = deep_merge_dicts(not_optimized, self._get_no_optimize_details())

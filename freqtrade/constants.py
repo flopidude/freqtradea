@@ -41,6 +41,7 @@ HYPEROPT_LOSS_BUILTIN = [
     "MultiMetricHyperOptLoss",
 ]
 AVAILABLE_PAIRLISTS = [
+    "InsiderPairList",
     "StaticPairList",
     "VolumePairList",
     "PercentChangePairList",

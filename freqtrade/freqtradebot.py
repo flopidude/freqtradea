@@ -322,7 +322,7 @@ class FreqtradeBot(LoggingMixin):
             logger.info("Temporarily extending the whitelist for pair " + pair + ".")
             _whitelist = self.pairlists.whitelist
             _whitelist.extend([pair for pair in [pair] if pair not in _whitelist])
-
+            self.pairlists.whitelist.extend([pair for pair in [pair] if pair not in _whitelist])
             # Refreshing candles
             self.dataprovider.refresh(
                 self.pairlists.create_pair_list(self.active_pair_whitelist),
