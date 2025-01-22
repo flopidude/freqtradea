@@ -625,7 +625,7 @@ def get_default_conf(testdatadir):
         "telegram": {
             "enabled": False,
             "token": "token",
-            "chat_id": "0",
+            "chat_id": "1235",
             "notification_settings": {},
         },
         "datadir": Path(testdatadir),
@@ -981,6 +981,29 @@ def get_markets():
                 "amount": {"min": 1.0, "max": 90000000.0},
                 "price": {"min": None, "max": None},
                 "cost": {"min": 0.0001, "max": None},
+                "leverage": {
+                    "min": None,
+                    "max": None,
+                },
+            },
+            "info": {},
+        },
+        "ETC/BTC": {
+            "id": "ETCBTC",
+            "symbol": "ETC/BTC",
+            "base": "ETC",
+            "quote": "BTC",
+            "active": True,
+            "spot": True,
+            "swap": False,
+            "linear": None,
+            "type": "spot",
+            "contractSize": None,
+            "precision": {"base": 8, "quote": 8, "amount": 2, "price": 7},
+            "limits": {
+                "amount": {"min": 0.01, "max": 90000000.0},
+                "price": {"min": 1e-07, "max": 1000.0},
+                "cost": {"min": 0.0001, "max": 9000000.0},
                 "leverage": {
                     "min": None,
                     "max": None,

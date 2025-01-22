@@ -50,18 +50,43 @@ def _init_dataframe_with_trades_columns(dataframe: pd.DataFrame):
         dataframe[column] = dataframe[column].astype(object)
 
 
-def _calculate_ohlcv_candle_start_and_end(df: pd.DataFrame, timeframe: str):
-    from freqtrade.exchange import timeframe_to_next_date, timeframe_to_resample_freq
+def timeframe_to_DateOffset(timeframe: str) -> pd.DateOffset:
+    """
+    Translates the timeframe interval value written in the human readable
+    form ('1m', '5m', '1h', '1d', '1w', etc.) to the number
+    of seconds for one timeframe interval.
+    """
+    from freqtrade.exchange import timeframe_to_seconds
 
-    timeframe_frequency = timeframe_to_resample_freq(timeframe)
-    # calculate ohlcv candle start and end
+    timeframe_seconds = timeframe_to_seconds(timeframe)
+    timeframe_minutes = timeframe_seconds // 60
+    if timeframe_minutes < 1:
+        return pd.DateOffset(seconds=timeframe_seconds)
+    elif 59 < timeframe_minutes < 1440:
+        return pd.DateOffset(hours=timeframe_minutes // 60)
+    elif 1440 <= timeframe_minutes < 10080:
+        return pd.DateOffset(days=timeframe_minutes // 1440)
+    elif 10000 < timeframe_minutes < 43200:
+        return pd.DateOffset(weeks=1)
+    elif timeframe_minutes >= 43200 and timeframe_minutes < 525600:
+        return pd.DateOffset(months=1)
+    elif timeframe == "1y":
+        return pd.DateOffset(years=1)
+    else:
+        return pd.DateOffset(minutes=timeframe_minutes)
+
+
+def _calculate_ohlcv_candle_start_and_end(df: pd.DataFrame, timeframe: str):
+    from freqtrade.exchange import timeframe_to_resample_freq
+
     if df is not None and not df.empty:
+        timeframe_frequency = timeframe_to_resample_freq(timeframe)
+        dofs = timeframe_to_DateOffset(timeframe)
+        # calculate ohlcv candle start and end
         df["datetime"] = pd.to_datetime(df["date"], unit="ms")
         df["candle_start"] = df["datetime"].dt.floor(timeframe_frequency)
         # used in _now_is_time_to_refresh_trades
-        df["candle_end"] = df["candle_start"].apply(
-            lambda candle_start: timeframe_to_next_date(timeframe, candle_start)
-        )
+        df["candle_end"] = df["candle_start"] + dofs
         df.drop(columns=["datetime"], inplace=True)
 
 
@@ -139,12 +164,12 @@ def populate_dataframe_with_trades(
                 dataframe.at[index, "imbalances"] = imbalances.to_dict(orient="index")
 
                 stacked_imbalance_range = config_orderflow["stacked_imbalance_range"]
-                dataframe.at[index, "stacked_imbalances_bid"] = stacked_imbalance_bid(
-                    imbalances, stacked_imbalance_range=stacked_imbalance_range
+                dataframe.at[index, "stacked_imbalances_bid"] = stacked_imbalance(
+                    imbalances, label="bid", stacked_imbalance_range=stacked_imbalance_range
                 )
 
-                dataframe.at[index, "stacked_imbalances_ask"] = stacked_imbalance_ask(
-                    imbalances, stacked_imbalance_range=stacked_imbalance_range
+                dataframe.at[index, "stacked_imbalances_ask"] = stacked_imbalance(
+                    imbalances, label="ask", stacked_imbalance_range=stacked_imbalance_range
                 )
 
                 bid = np.where(
@@ -231,34 +256,24 @@ def trades_orderflow_to_imbalances(df: pd.DataFrame, imbalance_ratio: int, imbal
     return dataframe
 
 
-def stacked_imbalance(
-    df: pd.DataFrame, label: str, stacked_imbalance_range: int, should_reverse: bool
-):
+def stacked_imbalance(df: pd.DataFrame, label: str, stacked_imbalance_range: int):
     """
     y * (y.groupby((y != y.shift()).cumsum()).cumcount() + 1)
     https://stackoverflow.com/questions/27626542/counting-consecutive-positive-values-in-python-pandas-array
     """
     imbalance = df[f"{label}_imbalance"]
     int_series = pd.Series(np.where(imbalance, 1, 0))
-    stacked = int_series * (
-        int_series.groupby((int_series != int_series.shift()).cumsum()).cumcount() + 1
-    )
+    # Group consecutive True values and get their counts
+    groups = (int_series != int_series.shift()).cumsum()
+    counts = int_series.groupby(groups).cumsum()
 
-    max_stacked_imbalance_idx = stacked.index[stacked >= stacked_imbalance_range]
-    stacked_imbalance_price = np.nan
-    if not max_stacked_imbalance_idx.empty:
-        idx = (
-            max_stacked_imbalance_idx[0]
-            if not should_reverse
-            else np.flipud(max_stacked_imbalance_idx)[0]
-        )
-        stacked_imbalance_price = imbalance.index[idx]
-    return stacked_imbalance_price
+    # Find indices where count meets or exceeds the range requirement
+    valid_indices = counts[counts >= stacked_imbalance_range].index
 
-
-def stacked_imbalance_ask(df: pd.DataFrame, stacked_imbalance_range: int):
-    return stacked_imbalance(df, "ask", stacked_imbalance_range, should_reverse=True)
-
-
-def stacked_imbalance_bid(df: pd.DataFrame, stacked_imbalance_range: int):
-    return stacked_imbalance(df, "bid", stacked_imbalance_range, should_reverse=False)
+    stacked_imbalance_prices = []
+    if not valid_indices.empty:
+        # Get all prices from valid indices from beginning of the range
+        stacked_imbalance_prices = [
+            imbalance.index.values[idx - (stacked_imbalance_range - 1)] for idx in valid_indices
+        ]
+    return stacked_imbalance_prices

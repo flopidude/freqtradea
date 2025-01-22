@@ -19,6 +19,7 @@ from sqlalchemy import (
     Select,
     String,
     UniqueConstraint,
+    case,
     desc,
     func,
     select,
@@ -191,6 +192,7 @@ class Order(ModelBase):
         return (
             f"Order(id={self.id}, trade={self.ft_trade_id}, order_id={self.order_id}, "
             f"side={self.side}, filled={self.safe_filled}, price={self.safe_price}, "
+            f"amount={self.amount}, "
             f"status={self.status}, date={self.order_date_utc:{DATETIME_PRINT_FORMAT}})"
         )
 
@@ -215,7 +217,7 @@ class Order(ModelBase):
         self.stop_price = safe_value_fallback(order, "stopPrice", default_value=self.stop_price)
         order_date = safe_value_fallback(order, "timestamp")
         if order_date:
-            self.order_date = datetime.fromtimestamp(order_date / 1000, tz=timezone.utc)
+            self.order_date = dt_from_ts(order_date)
         elif not self.order_date:
             self.order_date = dt_now()
 
@@ -600,6 +602,13 @@ class LocalTrade:
         return len(open_orders_wo_sl) > 0
 
     @property
+    def has_open_position(self) -> bool:
+        """
+        True if there is an open position for this trade
+        """
+        return self.amount > 0
+
+    @property
     def open_sl_orders(self) -> list[Order]:
         """
         All open stoploss orders for this trade
@@ -777,7 +786,9 @@ class LocalTrade:
         """
         if liquidation_price is None:
             return
-        self.liquidation_price = liquidation_price
+        self.liquidation_price = price_to_precision(
+            liquidation_price, self.price_precision, self.precision_mode_price
+        )
 
     def set_funding_fees(self, funding_fee: float) -> None:
         """
@@ -1247,7 +1258,11 @@ class LocalTrade:
         if current_amount_tr > 0.0:
             # Trade is still open
             # Leverage not updated, as we don't allow changing leverage through DCA at the moment.
-            self.open_rate = float(current_stake / current_amount)
+            self.open_rate = price_to_precision(
+                float(current_stake / current_amount),
+                self.price_precision,
+                self.precision_mode_price,
+            )
             self.amount = current_amount_tr
             self.stake_amount = float(current_stake) / (self.leverage or 1.0)
             self.fee_open_cost = self.fee_open * float(self.max_stake_amount)
@@ -1927,17 +1942,49 @@ class Trade(ModelBase, LocalTrade):
             start_date = datetime.now(timezone.utc) - timedelta(minutes=minutes)
             filters.append(Trade.close_date >= start_date)
 
-        pair_rates = Trade.session.execute(
+        pair_costs = (
             select(
                 Trade.pair,
-                func.sum(Trade.close_profit).label("profit_sum"),
+                func.sum(
+                    (
+                        func.coalesce(Order.filled, Order.amount)
+                        * func.coalesce(Order.average, Order.price, Order.ft_price)
+                    )
+                    / func.coalesce(Trade.leverage, 1)
+                ).label("cost_per_pair"),
+            )
+            .join(Order, Trade.id == Order.ft_trade_id)
+            .filter(
+                *filters,
+                Order.ft_order_side == case((Trade.is_short.is_(True), "sell"), else_="buy"),
+            )
+            # Order.filled.gt > 0
+            .group_by(Trade.pair)
+            .cte("pair_costs")
+        )
+        trades_grouped = (
+            select(
+                Trade.pair,
                 func.sum(Trade.close_profit_abs).label("profit_sum_abs"),
                 func.count(Trade.pair).label("count"),
             )
             .filter(*filters)
             .group_by(Trade.pair)
+            .cte("trades_grouped")
+        )
+        q = (
+            select(
+                trades_grouped.c.pair,
+                (trades_grouped.c.profit_sum_abs / pair_costs.c.cost_per_pair).label(
+                    "profit_ratio"
+                ),
+                trades_grouped.c.profit_sum_abs,
+                trades_grouped.c.count,
+            )
+            .join(pair_costs, trades_grouped.c.pair == pair_costs.c.pair)
             .order_by(desc("profit_sum_abs"))
-        ).all()
+        )
+        pair_rates = Trade.session.execute(q).all()
 
         return [
             {
