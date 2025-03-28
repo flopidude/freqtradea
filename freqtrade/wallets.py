@@ -200,8 +200,7 @@ class Wallets:
                 # Position is not open ...
                 continue
             size = self._exchange._contracts_to_amount(symbol, position["contracts"])
-            print(size)
-            collateral = safe_value_fallback(position, "collateral", "initialMargin", 0.0)
+            collateral = safe_value_fallback(position, "initialMargin", "collateral", 0.0)
             leverage = position.get("leverage")
             _parsed_positions[symbol] = PositionWallet(
                 symbol,
