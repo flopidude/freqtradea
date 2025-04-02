@@ -255,6 +255,7 @@ def _download_pair_history(
             candle_type=candle_type,
             prepend=prepend,
         )
+        until_ms = None
 
         logger.info(
             f'Download history data for "{pair}", {timeframe}, '

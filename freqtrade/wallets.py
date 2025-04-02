@@ -192,7 +192,7 @@ class Wallets:
         positions = self._exchange.fetch_positions()
         _parsed_positions = {}
         for position in positions:
-            print(position)
+            # print(position)
             symbol = position["symbol"]
             if position["side"] is None or (
                 position["collateral"] == 0.0 and self._config.get("margin_mode", "isolated") != "cross"
@@ -250,8 +250,10 @@ class Wallets:
                 # We don't own anything :O
                 return False
             wallet_amount = position.position
+            print(wallet_amount, trade.pair)
 
         if wallet_amount >= trade.amount:
+            print(trade.amount)
             return True
         return False
 
