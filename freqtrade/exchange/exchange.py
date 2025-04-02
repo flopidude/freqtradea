@@ -223,6 +223,17 @@ class Exchange:
 
         if config["dry_run"]:
             logger.info("Instance is running with dry_run enabled")
+        if config.get("testnet", False):
+            print("Running on testnet")
+            self.testnet = True
+        else:
+            self.testnet = False
+            
+        if config.get("demo", False):
+            print("Running on demo")
+            self.demo_trading = True
+        else:
+            self.demo_trading = False
         logger.info(f"Using CCXT {ccxt.__version__}")
         exchange_conf: dict[str, Any] = exchange_config if exchange_config else config["exchange"]
         remove_exchange_credentials(exchange_conf, config.get("dry_run", False))
@@ -377,6 +388,8 @@ class Exchange:
             ),
             "privateKey": exchange_config.get("private_key", exchange_config.get("privateKey")),
         }
+
+
         if ccxt_kwargs:
             logger.info("Applying additional ccxt config: %s", ccxt_kwargs)
         if self._ccxt_params:
@@ -386,6 +399,10 @@ class Exchange:
             ex_config.update(ccxt_kwargs)
         try:
             api = getattr(ccxt_module, name.lower())(ex_config)
+            if self.testnet:
+                api.set_sandbox_mode(True)
+            if self.demo_trading:
+                api.enable_demo_trading(True)
         except (KeyError, AttributeError) as e:
             raise OperationalException(f"Exchange {name} is not supported") from e
         except ccxt.BaseError as e:
