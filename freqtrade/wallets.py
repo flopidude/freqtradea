@@ -193,10 +193,11 @@ class Wallets:
 
         positions = self._exchange.fetch_positions()
         _parsed_positions = {}
+        logger.info(f"Positions in wallet initially: {len(positions)}")
         for position in positions:
             # print(position)
             symbol = position["symbol"]
-            print(symbol, "exists")
+            # print(symbol, "exists")
 
             if position["side"] is None or (
                 position["collateral"] == 0.0 and self._config.get("margin_mode", "isolated") != "cross"
@@ -214,6 +215,7 @@ class Wallets:
                 collateral=collateral,
                 side=position["side"],
             )
+        logger.info(f"Positions in wallet finally: {len(_parsed_positions)}")
         self._positions = _parsed_positions
         self._wallets = _wallets
 
