@@ -1734,6 +1734,8 @@ class Exchange:
             if pair:
                 symbols.append(pair)
             positions: list[CcxtPosition] = self._api.fetch_positions(symbols)
+            for position in positions:
+                print(position["symbol"], "official output")
             self._log_exchange_response("fetch_positions", positions)
             return positions
         except ccxt.DDoSProtection as e:
