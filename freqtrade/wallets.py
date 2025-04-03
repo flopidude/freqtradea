@@ -93,6 +93,7 @@ class Wallets:
         if self._config.get("trading_mode", "spot") != TradingMode.FUTURES:
             return self.get_total(base_currency) or 0
         if pos := self._positions.get(pair):
+            print(f"Returning real position of {pos.position}")
             return pos.position
         return 0
 
