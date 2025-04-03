@@ -90,6 +90,7 @@ class Wallets:
         Get currently owned value.
         Designed to work across both spot and futures.
         """
+        print(f"Getting owned value for {pair}")
         if self._config.get("trading_mode", "spot") != TradingMode.FUTURES:
             return self.get_total(base_currency) or 0
         if pos := self._positions.get(pair):

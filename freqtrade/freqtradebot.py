@@ -652,6 +652,7 @@ class FreqtradeBot(LoggingMixin):
                     if trade.base_currency
                     else 0
                 )
+                print(trade.base_currency, self.wallets.get_owned(trade.pair, trade.base_currency))
                 if total < trade.amount:
                     if trade.fully_canceled_entry_order_count == len(trade.orders):
                         logger.warning(
