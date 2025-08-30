@@ -11,12 +11,12 @@ Freqtrade is a free and open source crypto trading bot written in Python. It is 
 ![freqtrade](https://raw.githubusercontent.com/freqtrade/freqtrade/develop/docs/assets/freqtrade-screenshot.png)
 
 ## Features exclusive to this fork (at least as of April 2025)
-
 * Ability to do force_enter from within the strategy (`self._freqtrade.force_entry(pair, None, is_short=is_short)`) as well as launch other functions available in the FreqtradeBot class. These, of course, cannot be backtested, but it is worthwhile to use them in strategies that would generate trade signals in between the candles(to backtest the functionality I would recommend just using this on dry/live runs and have a default candle-based setup within the same strategy for a backtest)
 * Ability to create custom telegram callbacks, with functions defined within the strategy. (Can also be added to keyboard)
   * A modification like `"telegram": {"custom_commands": ["custom_command"]}` should be applied to the config
-  * A function like this should be implemented within the strategy's class:```
-  async def dca_strat(self, arguments=[]):
+  * A function like this should be implemented within the strategy's class:
+    ```
+    async def dca_strat(self, arguments=[]):
         tickers = list(self.wallets.get_all_positions().keys())
         if len(tickers) == 0:
             tickers = self.dp.current_whitelist()
@@ -27,7 +27,10 @@ Freqtrade is a free and open source crypto trading bot written in Python. It is 
         else:
             return {"output": "No tickers found", "table": False}
     ```
-* Ability to generate portfolio value graphs that include the real value of positions and not just value of closed positions. This is especially useful for backtesting DCA-based strategies or strategies that have a lot of intra-trade drawdowns, since it would allow for accurate measurements of performance. P.S. Unfortunately, as this was done primarily for a side project, the changes do not follow PEP standards for the repository and the implementation is a bit wacky(for example, the graph generating functionality runs as a separate plugin without integration into the plotting pipeline) in my opinion, so I'm not planning to contribute the changes to the main repository.
+* Ability to generate portfolio value graphs that include the real value of positions and not just value of closed positions. This is especially useful for backtesting DCA-based strategies or strategies that have a lot of intra-trade drawdowns, since it would allow for accurate measurements of performance.
+
+#### P.S. Unfortunately, as this was done primarily for a side project, the changes do not follow PEP standards for the repository and the implementation is a bit wacky(for example, the graph generating functionality runs as a separate plugin without integration into the plotting pipeline) in my opinion, so I'm not planning to contribute the changes to the main repository.
+
 
 ## Disclaimer
 
